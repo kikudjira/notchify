@@ -16,8 +16,10 @@ enum HooksConfig {
     private static let doneCommands    = ["notchify set done"]
     private static let waitingCommands = ["notchify set waiting"]
 
-    // Events that carry the "working" hooks
-    private static let workingEvents = ["UserPromptSubmit"]
+    // Events that carry the "working" hooks.
+    // PostToolUse fires after permission is granted and tool executes —
+    // needed to resume working animation when user approves a tool.
+    private static let workingEvents = ["UserPromptSubmit", "PostToolUse"]
 
     static func load() -> HookState {
         guard let json = loadJSON() else { return HookState(working: false, done: false, waiting: false) }

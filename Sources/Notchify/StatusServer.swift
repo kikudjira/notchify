@@ -78,6 +78,12 @@ final class StatusServer {
             let message = String(bytes: buffer.prefix(bytesRead), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
+            // Ignore "done" while in waiting state so the Notification→Stop
+            // sequence doesn't immediately replace the waiting animation.
+            if message == "done" && StatusManager.shared.status == .waiting {
+                continue
+            }
+
             if message == "quit" {
                 DispatchQueue.main.async {
                     NSApplication.shared.terminate(nil)
