@@ -91,17 +91,15 @@ Control which screen the mascot appears on and where it sits:
   2.  2560×1440
   a.  Auto (notch screen)
 
-  Horizontal  0 pt   + / -  or  h<N>  e.g. h-20
-  Vertical    0 pt   [ / ]  or  v<N>  e.g. v8
+  Horizontal  0 pt   h<N>  e.g. h-20  h40
+  Vertical    0 pt   v<N>  e.g. v8   v-4
   0   Reset both offsets
 ```
 
 - `1` / `2` — select screen by number
 - `a` — auto (always picks the notch screen)
-- `+` / `-` — move horizontally ±4 pt per step
-- `[` / `]` — move vertically ±4 pt per step
-- `h<N>` — set exact horizontal offset, e.g. `h-20` or `h40`
-- `v<N>` — set exact vertical offset, e.g. `v8` or `v-4`
+- `h<N>` — set horizontal offset, e.g. `h-20` or `h40`
+- `v<N>` — set vertical offset, e.g. `v8` or `v-4`
 - `0` — reset both offsets to zero
 
 Changes apply live — no restart needed.

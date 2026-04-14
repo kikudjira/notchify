@@ -215,8 +215,8 @@ struct Configurator {
             let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)←\(ANSI.reset)" : ""
             print("  a.  Auto (notch screen)\(autoMark)")
             print()
-            print("  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)+ / -  or  h<N>  e.g. h-20\(ANSI.reset)")
-            print("  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)[ / ]  or  v<N>  e.g. v8\(ANSI.reset)")
+            print("  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)h<N>  e.g. h-20  h40\(ANSI.reset)")
+            print("  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)v<N>  e.g. v8   v-4\(ANSI.reset)")
             print("  0   Reset both offsets")
             print()
             print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
@@ -241,22 +241,6 @@ struct Configurator {
                 DisplayConfig.save(settings); sendReposition()
                 flash("Offsets reset")
                 continue
-            }
-            if lower == "+" {
-                settings.horizontalOffset += 4
-                DisplayConfig.save(settings); sendReposition(); continue
-            }
-            if lower == "-" {
-                settings.horizontalOffset -= 4
-                DisplayConfig.save(settings); sendReposition(); continue
-            }
-            if lower == "[" {
-                settings.verticalOffset -= 4
-                DisplayConfig.save(settings); sendReposition(); continue
-            }
-            if lower == "]" {
-                settings.verticalOffset += 4
-                DisplayConfig.save(settings); sendReposition(); continue
             }
             // screen selection: single number within screen list range
             if let n = Int(lower), n >= 1, n <= screens.count {
