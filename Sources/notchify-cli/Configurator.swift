@@ -185,13 +185,11 @@ struct Configurator {
         } else {
             let ok = LoginItemConfig.enable()
             if ok {
-                flash("Login item added")
+                flash("Login item added — will start at next login")
             } else {
                 print()
-                print("  \(ANSI.yellow)⚠\(ANSI.reset)  Could not add login item automatically.")
-                print("  Add manually: System Settings → General → Login Items → +")
-                print("  App path: \(LoginItemConfig.appPath())")
-                Thread.sleep(forTimeInterval: 3.0)
+                print("  \(ANSI.yellow)⚠\(ANSI.reset)  Could not write ~/Library/LaunchAgents/")
+                Thread.sleep(forTimeInterval: 2.0)
             }
         }
     }

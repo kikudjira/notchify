@@ -1,31 +1,56 @@
 import Foundation
 
 enum LoginItemConfig {
+    private static let label = "com.notchify.app"
+
+    private static var plistURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
     static func isEnabled() -> Bool {
-        let script = #"tell application "System Events" to get the name of every login item"#
-        return runOsascript(script).output.contains("Notchify")
+        FileManager.default.fileExists(atPath: plistURL.path)
     }
 
     @discardableResult
     static func enable() -> Bool {
-        let appPath = resolveAppPath()
-        let script = """
-tell application "System Events" to make login item at end with properties {path:"\(appPath)", hidden:true}
-"""
-        return runOsascript(script).exitCode == 0
+        let binary = appPath() + "/Contents/MacOS/Notchify"
+        let plist = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(label)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(binary)</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+        </dict>
+        </plist>
+        """
+        do {
+            try plist.write(to: plistURL, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
+        }
     }
 
     @discardableResult
     static func disable() -> Bool {
-        return runOsascript(#"tell application "System Events" to delete login item "Notchify""#).exitCode == 0
+        try? FileManager.default.removeItem(at: plistURL)
+        return !FileManager.default.fileExists(atPath: plistURL.path)
     }
 
-    // MARK: - Helpers
+    // MARK: - App path
 
     static func appPath() -> String { resolveAppPath() }
 
     private static func resolveAppPath() -> String {
-        // Primary: read path saved by setup.sh
         let savedPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".config/notchify/app_path").path
         if let saved = try? String(contentsOfFile: savedPath, encoding: .utf8) {
@@ -34,34 +59,13 @@ tell application "System Events" to make login item at end with properties {path
                 return trimmed
             }
         }
-
-        // Fallback: walk up from fully-resolved argv[0] looking for .app
-        let cliRaw = CommandLine.arguments[0]
-        let absPath = cliRaw.hasPrefix("/") ? cliRaw
-            : FileManager.default.currentDirectoryPath + "/" + cliRaw
-        var url = URL(fileURLWithPath: absPath).resolvingSymlinksInPath()
+        let raw = CommandLine.arguments[0]
+        let abs = raw.hasPrefix("/") ? raw : FileManager.default.currentDirectoryPath + "/" + raw
+        var url = URL(fileURLWithPath: abs).resolvingSymlinksInPath()
         while url.pathComponents.count > 1 {
             if url.pathExtension == "app" { return url.path }
             url = url.deletingLastPathComponent()
         }
         return url.path
-    }
-
-    private struct OsascriptResult {
-        let output: String
-        let exitCode: Int32
-    }
-
-    private static func runOsascript(_ script: String) -> OsascriptResult {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        proc.arguments = ["-e", script]
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        proc.standardError = Pipe()
-        try? proc.run()
-        proc.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return OsascriptResult(output: output, exitCode: proc.terminationStatus)
     }
 }
