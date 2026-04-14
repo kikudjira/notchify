@@ -63,6 +63,12 @@ final class NotchWindowController: NSObject {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(repositionPanel),
+            name: .notchifyReposition,
+            object: nil
+        )
     }
 
     @objc private func repositionPanel() {
@@ -74,32 +80,32 @@ final class NotchWindowController: NSObject {
 
     // MARK: - Screen selection
 
-    /// Prefer the screen that has a notch (auxiliaryTopRightArea != nil).
+    /// Returns the target screen based on DisplayConfig.
     private func targetScreen() -> NSScreen? {
-        NSScreen.screens.first(where: { $0.auxiliaryTopRightArea != nil })
-            ?? NSScreen.main
+        let settings = DisplayConfig.load()
+        let screens = NSScreen.screens
+        if settings.screenIndex >= 0, settings.screenIndex < screens.count {
+            return screens[settings.screenIndex]
+        }
+        // Auto: prefer notch screen
+        return screens.first(where: { $0.auxiliaryTopRightArea != nil }) ?? NSScreen.main
     }
 
     // MARK: - Frame
 
     private func windowFrame(screen: NSScreen) -> CGRect {
+        let settings = DisplayConfig.load()
         let sf = screen.frame
         let menuBarH = menuBarHeight(screen: screen)
+        let offset = CGFloat(settings.horizontalOffset)
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
-            // Sit the window's right edge 2 pt left of where system icons begin.
-            // That tiny 2pt overlap gives the black background a seamless connection
-            // to the dark notch zone, without hiding the mascot behind the camera hardware.
-            x = sf.minX + (sf.width - rightArea.width) - 2
+            x = sf.minX + (sf.width - rightArea.width) - 2 + offset
         } else {
-            // Non-notch display fallback
-            x = sf.maxX - 220 - mascotWidth
+            x = sf.maxX - 220 - mascotWidth + offset
         }
 
-        // Align window bottom with menu-bar bottom.
-        // The 36pt canvas is taller than the 32pt menu bar on notch Macs —
-        // the top few rows (empty canvas space) overflow and are clipped by the screen edge.
         let y = sf.maxY - menuBarH
 
         return CGRect(x: x, y: y, width: mascotWidth, height: menuBarH)

@@ -19,6 +19,7 @@ struct Configurator {
             print("  2.  Sounds             \(ANSI.dim)(per-state audio)\(ANSI.reset)")
             print("  3.  Startup animation  \(startup ? ANSI.on() : ANSI.off())")
             print("  4.  Login item         \(login   ? ANSI.on() : ANSI.off())")
+            print("  5.  Display            \(ANSI.dim)(screen & position)\(ANSI.reset)")
             print()
             print("  \(ANSI.dim)notchify launch  — start the app\(ANSI.reset)")
             print("  \(ANSI.dim)q.  Quit\(ANSI.reset)")
@@ -33,6 +34,7 @@ struct Configurator {
             case "4":
                 toggleLoginItem()
                 login = LoginItemConfig.isEnabled()
+            case "5": displayMenu()
             case "q", nil: return
             default: break
             }
@@ -192,6 +194,85 @@ struct Configurator {
                 Thread.sleep(forTimeInterval: 2.0)
             }
         }
+    }
+
+    // MARK: - Display menu
+
+    private static func displayMenu() {
+        while true {
+            ANSI.clearScreen()
+            var settings = DisplayConfig.load()
+            let screens  = DisplayConfig.screenList()
+
+            ANSI.header("Display", subtitle: "~/.config/notchify/display.json")
+
+            print("  Screens:")
+            for s in screens {
+                let notch  = s.hasNotch ? " \(ANSI.dim)[notch]\(ANSI.reset)" : ""
+                let active = s.isCurrent ? " \(ANSI.green)←\(ANSI.reset)" : ""
+                print("  \(s.index + 1).  \(s.name)\(notch)\(active)")
+            }
+            let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)←\(ANSI.reset)" : ""
+            print("  a.  Auto (notch screen)\(autoMark)")
+            print()
+            print("  Horizontal offset: \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)(+/- to adjust, 0 to reset)\(ANSI.reset)")
+            print()
+            print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
+            print()
+
+            guard let ch = prompt() else { return }
+            switch ch {
+            case "b": return
+            case "a":
+                settings.screenIndex = -1
+                DisplayConfig.save(settings)
+                sendReposition()
+                flash("Screen: auto")
+            case "+":
+                settings.horizontalOffset += 4
+                DisplayConfig.save(settings)
+                sendReposition()
+            case "-":
+                settings.horizontalOffset -= 4
+                DisplayConfig.save(settings)
+                sendReposition()
+            case "0":
+                settings.horizontalOffset = 0
+                DisplayConfig.save(settings)
+                sendReposition()
+                flash("Offset reset to 0")
+            default:
+                if let n = ch.wholeNumberValue, n >= 1, n <= screens.count {
+                    settings.screenIndex = n - 1
+                    DisplayConfig.save(settings)
+                    sendReposition()
+                    flash("Screen: \(screens[n - 1].name)")
+                }
+            }
+        }
+    }
+
+    private static func sendReposition() {
+        // Tell the running app to re-read config and reposition immediately.
+        // Reuse the socket helper from main.swift via a local inline send.
+        let socketPath = "/tmp/notchify.sock"
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        socketPath.withCString { cStr in
+            withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
+                UnsafeMutableRawPointer(ptr).copyMemory(from: cStr, byteCount: strlen(cStr) + 1)
+            }
+        }
+        let ok = withUnsafePointer(to: addr) { p in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard ok == 0 else { close(fd); return }
+        "reposition".withCString { _ = Darwin.write(fd, $0, 10) }
+        close(fd)
     }
 
     // MARK: - Utilities

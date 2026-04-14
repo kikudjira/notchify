@@ -1,6 +1,10 @@
 import Foundation
 import Combine
 
+extension Notification.Name {
+    static let notchifyReposition = Notification.Name("notchifyReposition")
+}
+
 enum ClaudeStatus: String, Equatable {
     case idle
     case start       // plays once on Claude Code launch, freezes on last frame

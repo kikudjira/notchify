@@ -82,6 +82,12 @@ final class StatusServer {
                 DispatchQueue.main.async {
                     NSApplication.shared.terminate(nil)
                 }
+            } else if message == "reposition" {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .notchifyReposition, object: nil
+                    )
+                }
             } else if let status = ClaudeStatus(rawValue: message) {
                 StatusManager.shared.update(status)
             }
