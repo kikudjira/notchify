@@ -41,14 +41,22 @@ final class SoundManager {
         }
     }
 
-    private func loadEntry(for key: String) -> [String: String]? {
-        guard FileManager.default.fileExists(atPath: configURL.path),
-              let data = try? Data(contentsOf: configURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
+    private static let defaults: [String: [String: String]] = [
+        "start":   ["system": "Hero"],
+        "done":    ["system": "Glass"],
+        "waiting": ["system": "Ping"],
+        "error":   ["system": "Basso"],
+    ]
 
-        // null or missing → no sound
-        guard let value = json[key], !(value is NSNull) else { return nil }
-        return value as? [String: String]
+    private func loadEntry(for key: String) -> [String: String]? {
+        // If config file exists, use it (null or missing key = no sound)
+        if FileManager.default.fileExists(atPath: configURL.path),
+           let data = try? Data(contentsOf: configURL),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard let value = json[key], !(value is NSNull) else { return nil }
+            return value as? [String: String]
+        }
+        // No config file → fall back to built-in defaults
+        return SoundManager.defaults[key]
     }
 }
