@@ -69,6 +69,7 @@ if command == "launch" {
     openProc.arguments = [appPath]
     do {
         try openProc.run()
+        openProc.waitUntilExit()  // wait for Launch Services handoff to complete
     } catch {
         fputs("notchify launch: \(error)\n", stderr)
         exit(1)
