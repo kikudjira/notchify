@@ -35,8 +35,11 @@ enum DisplayConfig {
         let settings = load()
         return NSScreen.screens.enumerated().map { i, screen in
             let hasNotch = screen.auxiliaryTopRightArea != nil
-            let res = screen.frame
-            let name = "\(Int(res.width))×\(Int(res.height))"
+            let scale = screen.backingScaleFactor
+            let f = screen.frame
+            let pw = Int(f.width  * scale)
+            let ph = Int(f.height * scale)
+            let name = "\(pw)×\(ph)"
             let isCurrent = settings.screenIndex == i
             return (i, name, hasNotch, isCurrent)
         }

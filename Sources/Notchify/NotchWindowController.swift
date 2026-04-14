@@ -104,7 +104,8 @@ final class NotchWindowController: NSObject {
         if let rightArea = screen.auxiliaryTopRightArea {
             x = sf.minX + (sf.width - rightArea.width) - 2 + offset
         } else {
-            x = sf.maxX - 220 - mascotWidth + offset
+            // Non-notch: center the mascot in the menu bar
+            x = sf.minX + (sf.width - mascotWidth) / 2 + offset
         }
 
         let y = sf.maxY - menuBarH
