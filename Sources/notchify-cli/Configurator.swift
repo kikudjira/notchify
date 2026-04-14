@@ -258,29 +258,23 @@ struct Configurator {
                 settings.verticalOffset += 4
                 DisplayConfig.save(settings); sendReposition(); continue
             }
-            // h<N>  — set exact horizontal offset
+            // screen selection: single number within screen list range
+            if let n = Int(lower), n >= 1, n <= screens.count {
+                settings.screenIndex = n - 1
+                DisplayConfig.save(settings); sendReposition()
+                flash("Screen: \(screens[n - 1].name)"); continue
+            }
+            // h<N>  — set exact horizontal offset (e.g. h-20, h40)
             if lower.hasPrefix("h"), let n = Int(lower.dropFirst()) {
                 settings.horizontalOffset = n
                 DisplayConfig.save(settings); sendReposition()
                 flash("Horizontal: \(n) pt"); continue
             }
-            // v<N>  — set exact vertical offset
+            // v<N>  — set exact vertical offset (e.g. v8, v-4)
             if lower.hasPrefix("v"), let n = Int(lower.dropFirst()) {
                 settings.verticalOffset = n
                 DisplayConfig.save(settings); sendReposition()
                 flash("Vertical: \(n) pt"); continue
-            }
-            // bare integer — set horizontal offset directly
-            if let n = Int(lower) {
-                settings.horizontalOffset = n
-                DisplayConfig.save(settings); sendReposition()
-                flash("Horizontal: \(n) pt"); continue
-            }
-            // screen selection by number
-            if let n = Int(lower), n >= 1, n <= screens.count {
-                settings.screenIndex = n - 1
-                DisplayConfig.save(settings); sendReposition()
-                flash("Screen: \(screens[n - 1].name)")
             }
         }
     }
