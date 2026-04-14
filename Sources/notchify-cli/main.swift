@@ -50,8 +50,9 @@ if command == "quit" {
 // ---- launch ----
 if command == "launch" {
     let appPath = resolveAppPath()
-    guard FileManager.default.fileExists(atPath: appPath) else {
-        fputs("notchify launch: app not found at \(appPath)\n", stderr)
+    guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {
+        fputs("notchify launch: Notchify.app not found (resolved: \(appPath))\n", stderr)
+        fputs("Hint: re-install or run 'brew reinstall notchify'\n", stderr)
         exit(1)
     }
     // Strip quarantine so Launch Services won't block the unsigned app
@@ -85,27 +86,47 @@ sendToSocket(args[2])
 
 // MARK: - App path resolution
 
-/// Finds Notchify.app regardless of install method (setup.sh or Homebrew).
-/// 1. Reads ~/.config/notchify/app_path saved by setup.sh
-/// 2. Falls back to walking up from this binary's resolved path
+/// Finds Notchify.app regardless of install method.
+/// Search order:
+///   1. ~/.config/notchify/app_path  (written by post_install or setup.sh)
+///   2. Homebrew Cellar              (newest version first)
+///   3. /Applications/Notchify.app
+///   4. Walk up from this binary     (local dev builds)
 func resolveAppPath() -> String {
-    let savedPath = FileManager.default.homeDirectoryForCurrentUser
+    let fm = FileManager.default
+
+    // 1. Explicit app_path file
+    let savedPath = fm.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/notchify/app_path").path
     if let saved = try? String(contentsOfFile: savedPath, encoding: .utf8) {
         let trimmed = saved.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty && FileManager.default.fileExists(atPath: trimmed) {
+        if !trimmed.isEmpty && trimmed.hasSuffix(".app") && fm.fileExists(atPath: trimmed) {
             return trimmed
         }
     }
-    // Walk up from the resolved binary path to find the enclosing .app
+
+    // 2. Homebrew Cellar (works even when post_install sandbox blocks the write)
+    let cellarBase = "/opt/homebrew/Cellar/notchify"
+    if let versions = try? fm.contentsOfDirectory(atPath: cellarBase) {
+        for version in versions.sorted().reversed() {
+            let candidate = "\(cellarBase)/\(version)/Notchify.app"
+            if fm.fileExists(atPath: candidate) { return candidate }
+        }
+    }
+
+    // 3. /Applications
+    let appDir = "/Applications/Notchify.app"
+    if fm.fileExists(atPath: appDir) { return appDir }
+
+    // 4. Walk up from this binary (local dev / swift run)
     let raw = CommandLine.arguments[0]
-    let abs = raw.hasPrefix("/") ? raw : FileManager.default.currentDirectoryPath + "/" + raw
+    let abs = raw.hasPrefix("/") ? raw : fm.currentDirectoryPath + "/" + raw
     var url = URL(fileURLWithPath: abs).resolvingSymlinksInPath()
     while url.pathComponents.count > 1 {
         if url.pathExtension == "app" { return url.path }
         url = url.deletingLastPathComponent()
     }
-    return url.path
+    return ""
 }
 
 // MARK: - Socket helper
