@@ -58,6 +58,8 @@ if command == "launch" {
     let xattr = Process()
     xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
     xattr.arguments = ["-dr", "com.apple.quarantine", appPath]
+    xattr.standardOutput = FileHandle.nullDevice
+    xattr.standardError = FileHandle.nullDevice
     try? xattr.run()
     xattr.waitUntilExit()
     // Open via Launch Services — required for proper AppKit/window server init
