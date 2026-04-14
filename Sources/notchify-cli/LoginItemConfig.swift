@@ -3,23 +3,26 @@ import Foundation
 enum LoginItemConfig {
     static func isEnabled() -> Bool {
         let script = #"tell application "System Events" to get the name of every login item"#
-        let output = runOsascript(script)
-        return output.contains("Notchify")
+        return runOsascript(script).output.contains("Notchify")
     }
 
-    static func enable() {
+    @discardableResult
+    static func enable() -> Bool {
         let appPath = resolveAppPath()
         let script = """
 tell application "System Events" to make login item at end with properties {path:"\(appPath)", hidden:true}
 """
-        _ = runOsascript(script)
+        return runOsascript(script).exitCode == 0
     }
 
-    static func disable() {
-        _ = runOsascript(#"tell application "System Events" to delete login item "Notchify""#)
+    @discardableResult
+    static func disable() -> Bool {
+        return runOsascript(#"tell application "System Events" to delete login item "Notchify""#).exitCode == 0
     }
 
     // MARK: - Helpers
+
+    static func appPath() -> String { resolveAppPath() }
 
     private static func resolveAppPath() -> String {
         // Primary: read path saved by setup.sh
@@ -44,8 +47,12 @@ tell application "System Events" to make login item at end with properties {path
         return url.path
     }
 
-    @discardableResult
-    private static func runOsascript(_ script: String) -> String {
+    private struct OsascriptResult {
+        let output: String
+        let exitCode: Int32
+    }
+
+    private static func runOsascript(_ script: String) -> OsascriptResult {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         proc.arguments = ["-e", script]
@@ -54,6 +61,7 @@ tell application "System Events" to make login item at end with properties {path
         proc.standardError = Pipe()
         try? proc.run()
         proc.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return OsascriptResult(output: output, exitCode: proc.terminationStatus)
     }
 }
