@@ -50,12 +50,26 @@ if command == "quit" {
 // ---- launch ----
 if command == "launch" {
     let appPath = resolveAppPath()
-    let binary = appPath + "/Contents/MacOS/Notchify"
-    let proc = Process()
-    proc.executableURL = URL(fileURLWithPath: binary)
-    // Detach so the CLI exits immediately while the app keeps running
-    proc.qualityOfService = .userInteractive
-    try? proc.run()
+    guard FileManager.default.fileExists(atPath: appPath) else {
+        fputs("notchify launch: app not found at \(appPath)\n", stderr)
+        exit(1)
+    }
+    // Strip quarantine so Launch Services won't block the unsigned app
+    let xattr = Process()
+    xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+    xattr.arguments = ["-dr", "com.apple.quarantine", appPath]
+    try? xattr.run()
+    xattr.waitUntilExit()
+    // Open via Launch Services — required for proper AppKit/window server init
+    let openProc = Process()
+    openProc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    openProc.arguments = [appPath]
+    do {
+        try openProc.run()
+    } catch {
+        fputs("notchify launch: \(error)\n", stderr)
+        exit(1)
+    }
     exit(0)
 }
 
