@@ -215,39 +215,72 @@ struct Configurator {
             let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)←\(ANSI.reset)" : ""
             print("  a.  Auto (notch screen)\(autoMark)")
             print()
-            print("  Horizontal offset: \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)(+/- to adjust, 0 to reset)\(ANSI.reset)")
+            print("  h:  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)(+/- steps, h<N> exact, e.g. h-20)\(ANSI.reset)")
+            print("  v:  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)([/] steps, v<N> exact, e.g. v8)\(ANSI.reset)")
+            print("  0.  Reset both offsets")
             print()
             print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
             print()
 
-            guard let ch = prompt() else { return }
-            switch ch {
-            case "b": return
-            case "a":
+            print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
+            fflush(stdout)
+            guard let input = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespaces),
+                  !input.isEmpty else { continue }
+            let lower = input.lowercased()
+
+            if lower == "b" { return }
+            if lower == "a" {
                 settings.screenIndex = -1
-                DisplayConfig.save(settings)
-                sendReposition()
+                DisplayConfig.save(settings); sendReposition()
                 flash("Screen: auto")
-            case "+":
-                settings.horizontalOffset += 4
-                DisplayConfig.save(settings)
-                sendReposition()
-            case "-":
-                settings.horizontalOffset -= 4
-                DisplayConfig.save(settings)
-                sendReposition()
-            case "0":
+                continue
+            }
+            if lower == "0" {
                 settings.horizontalOffset = 0
-                DisplayConfig.save(settings)
-                sendReposition()
-                flash("Offset reset to 0")
-            default:
-                if let n = ch.wholeNumberValue, n >= 1, n <= screens.count {
-                    settings.screenIndex = n - 1
-                    DisplayConfig.save(settings)
-                    sendReposition()
-                    flash("Screen: \(screens[n - 1].name)")
-                }
+                settings.verticalOffset   = 0
+                DisplayConfig.save(settings); sendReposition()
+                flash("Offsets reset")
+                continue
+            }
+            if lower == "+" {
+                settings.horizontalOffset += 4
+                DisplayConfig.save(settings); sendReposition(); continue
+            }
+            if lower == "-" {
+                settings.horizontalOffset -= 4
+                DisplayConfig.save(settings); sendReposition(); continue
+            }
+            if lower == "[" {
+                settings.verticalOffset -= 4
+                DisplayConfig.save(settings); sendReposition(); continue
+            }
+            if lower == "]" {
+                settings.verticalOffset += 4
+                DisplayConfig.save(settings); sendReposition(); continue
+            }
+            // h<N>  — set exact horizontal offset
+            if lower.hasPrefix("h"), let n = Int(lower.dropFirst()) {
+                settings.horizontalOffset = n
+                DisplayConfig.save(settings); sendReposition()
+                flash("Horizontal: \(n) pt"); continue
+            }
+            // v<N>  — set exact vertical offset
+            if lower.hasPrefix("v"), let n = Int(lower.dropFirst()) {
+                settings.verticalOffset = n
+                DisplayConfig.save(settings); sendReposition()
+                flash("Vertical: \(n) pt"); continue
+            }
+            // bare integer — set horizontal offset directly
+            if let n = Int(lower) {
+                settings.horizontalOffset = n
+                DisplayConfig.save(settings); sendReposition()
+                flash("Horizontal: \(n) pt"); continue
+            }
+            // screen selection by number
+            if let n = Int(lower), n >= 1, n <= screens.count {
+                settings.screenIndex = n - 1
+                DisplayConfig.save(settings); sendReposition()
+                flash("Screen: \(screens[n - 1].name)")
             }
         }
     }

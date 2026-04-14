@@ -5,8 +5,10 @@ struct DisplaySettings: Codable {
     var screenIndex: Int
     /// Horizontal offset in points. Negative = shift left, positive = right.
     var horizontalOffset: Int
+    /// Vertical offset in points. Positive = shift down, negative = shift up.
+    var verticalOffset: Int
 
-    static let `default` = DisplaySettings(screenIndex: -1, horizontalOffset: 0)
+    static let `default` = DisplaySettings(screenIndex: -1, horizontalOffset: 0, verticalOffset: 0)
 }
 
 enum DisplayConfig {

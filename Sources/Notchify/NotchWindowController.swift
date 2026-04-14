@@ -98,19 +98,23 @@ final class NotchWindowController: NSObject {
         let settings = DisplayConfig.load()
         let sf = screen.frame
         let menuBarH = menuBarHeight(screen: screen)
-        let offset = CGFloat(settings.horizontalOffset)
+        let windowH  = max(menuBarH, mascotHeight)
+        let hOffset  = CGFloat(settings.horizontalOffset)
+        let vOffset  = CGFloat(settings.verticalOffset)  // positive = down
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
-            x = sf.minX + (sf.width - rightArea.width) - 2 + offset
+            x = sf.minX + (sf.width - rightArea.width) - 2 + hOffset
         } else {
             // Non-notch: center the mascot in the menu bar
-            x = sf.minX + (sf.width - mascotWidth) / 2 + offset
+            x = sf.minX + (sf.width - mascotWidth) / 2 + hOffset
         }
 
-        let y = sf.maxY - menuBarH
+        // Anchor top of window to screen top so the mascot isn't clipped,
+        // then apply vertical offset (positive shifts down).
+        let y = sf.maxY - windowH - vOffset
 
-        return CGRect(x: x, y: y, width: mascotWidth, height: max(menuBarH, mascotHeight))
+        return CGRect(x: x, y: y, width: mascotWidth, height: windowH)
     }
 
     private func menuBarHeight(screen: NSScreen) -> CGFloat {
