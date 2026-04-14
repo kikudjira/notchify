@@ -18,9 +18,10 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp .build/release/Notchify      "$MACOS_DIR/Notchify"
 cp .build/release/notchify-cli  "$MACOS_DIR/notchify-cli"
 
-# SPM resource bundle (needed for Bundle.module to find PNG/asset resources)
+# SPM resource bundle — must sit at Notchify.app/Notchify_Notchify.bundle
+# because Bundle.module resolves to Bundle.main.bundleURL + bundle name
 if [ -d ".build/release/Notchify_Notchify.bundle" ]; then
-    cp -r .build/release/Notchify_Notchify.bundle "$MACOS_DIR/"
+    cp -r .build/release/Notchify_Notchify.bundle "$APP_NAME/"
 fi
 
 # ---- Info.plist ----
