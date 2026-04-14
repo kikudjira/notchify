@@ -215,9 +215,9 @@ struct Configurator {
             let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)←\(ANSI.reset)" : ""
             print("  a.  Auto (notch screen)\(autoMark)")
             print()
-            print("  h:  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)(+/- steps, h<N> exact, e.g. h-20)\(ANSI.reset)")
-            print("  v:  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)([/] steps, v<N> exact, e.g. v8)\(ANSI.reset)")
-            print("  0.  Reset both offsets")
+            print("  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)+ / -  or  h<N>  e.g. h-20\(ANSI.reset)")
+            print("  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)[ / ]  or  v<N>  e.g. v8\(ANSI.reset)")
+            print("  0   Reset both offsets")
             print()
             print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
             print()

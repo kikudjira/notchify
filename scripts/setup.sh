@@ -93,7 +93,7 @@ def ensure_hook(event, command):
 
 if install_working == "true":
     ensure_hook("UserPromptSubmit", "~/bin/notchify set working")
-    ensure_hook("PreToolUse",       "~/bin/notchify set working")
+    ensure_hook("PostToolUse",      "~/bin/notchify set working")
 if install_done == "true":
     ensure_hook("Stop",             "~/bin/notchify set done")
 if install_waiting == "true":
