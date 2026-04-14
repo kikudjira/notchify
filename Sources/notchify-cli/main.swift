@@ -49,11 +49,13 @@ if command == "quit" {
 
 // ---- launch ----
 if command == "launch" {
-    // Auto-enable all hooks on first launch if none are configured yet
+    // Auto-enable all hooks and startup animation on first launch if none are configured yet
     let hookState = HooksConfig.load()
     if !hookState.working { HooksConfig.setWorking(true) }
     if !hookState.done    { HooksConfig.setDone(true) }
     if !hookState.waiting { HooksConfig.setWaiting(true) }
+    ShellWrapperConfig.migrateIfNeeded()
+    if !ShellWrapperConfig.isEnabled() { ShellWrapperConfig.enable() }
 
     let appPath = resolveAppPath()
     guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {

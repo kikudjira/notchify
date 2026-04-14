@@ -175,9 +175,9 @@ private struct DoneAnimationView: View {
 
 private struct WaitingAnimationView: View {
     @State private var frame = 0
-    private let totalFrames = 10
-    private let loopStart   = 4    // first 4 are intro, last 6 loop
-    private let frameNames: [String] = (0...9).map { String(format: "wait_%02d", $0) }
+    private let totalFrames = 8
+    private let loopStart   = 4    // first 4 are intro, last 4 loop
+    private let frameNames: [String] = (0...7).map { String(format: "wait_%02d", $0) }
 
     var body: some View {
         let name = frameNames[frame]

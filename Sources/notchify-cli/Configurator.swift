@@ -49,7 +49,7 @@ struct Configurator {
             let state = HooksConfig.load()
 
             ANSI.header("Hooks", subtitle: "~/.claude/settings.json")
-            print("  1.  working  \(ANSI.dim)(UserPromptSubmit + PreToolUse)\(ANSI.reset)  \(state.working ? ANSI.on() : ANSI.off())")
+            print("  1.  working  \(ANSI.dim)(UserPromptSubmit + PostToolUse)\(ANSI.reset)  \(state.working ? ANSI.on() : ANSI.off())")
             print("  2.  done     \(ANSI.dim)(Stop)\(ANSI.reset)                           \(state.done    ? ANSI.on() : ANSI.off())")
             print("  3.  waiting  \(ANSI.dim)(Notification)\(ANSI.reset)                   \(state.waiting ? ANSI.on() : ANSI.off())")
             print()

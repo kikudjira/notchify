@@ -35,15 +35,15 @@ cd notchify
 
 ## What it shows
 
-| State     | When                                   |
-|-----------|----------------------------------------|
-| `start`   | You run `claude` in the terminal       |
-| `working` | Claude is processing / using a tool    |
-| `waiting` | Claude needs your attention            |
-| `done`    | Claude finished a turn                 |
-| `error`   | Something went wrong                   |
-| `bye`     | You exit `claude`                      |
-| `idle`    | Mascot hidden                          |
+| State     | When                                   | Animation |
+|-----------|----------------------------------------|-----------|
+| `start`   | You run `claude` in the terminal       | ![start](piskel/cm_start.gif) |
+| `working` | Claude is processing / using a tool    | ![working](piskel/cm_working.gif) |
+| `waiting` | Claude needs your attention            | ![waiting](piskel/cm_waiting.gif) |
+| `done`    | Claude finished a turn                 | ![done](piskel/cm_done.gif) |
+| `error`   | Something went wrong                   | — |
+| `bye`     | You exit `claude`                      | ![bye](piskel/cm_bye.gif) |
+| `idle`    | Mascot hidden                          | — |
 
 ---
 
@@ -132,7 +132,7 @@ Source files (`.piskel`) are in `piskel/`.
 |-----------|---------------------------------------|-------|
 | `start`   | `start_00.png` …                      | once  |
 | `working` | `work_0.png` … `work_2.png`           | loop  |
-| `waiting` | `wait_00.png` … `wait_09.png`         | loop  |
+| `waiting` | `wait_00.png` … `wait_07.png`         | loop  |
 | `done`    | `done_00.png` … `done_03.png`         | once  |
 | `bye`     | `bye_00.png` …                        | once  |
 

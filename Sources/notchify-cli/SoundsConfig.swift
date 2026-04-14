@@ -15,12 +15,12 @@ enum SoundEntry: Equatable {
 }
 
 struct SoundsConfig {
-    var start:   SoundEntry = .none
+    var start:   SoundEntry = .system("Hero")
     var working: SoundEntry = .none
-    var waiting: SoundEntry = .none
-    var done:    SoundEntry = .none
+    var waiting: SoundEntry = .system("Ping")
+    var done:    SoundEntry = .system("Glass")
     var bye:     SoundEntry = .none
-    var error:   SoundEntry = .none
+    var error:   SoundEntry = .system("Basso")
     var idle:    SoundEntry = .none
 
     static let configURL: URL = FileManager.default.homeDirectoryForCurrentUser

@@ -35,6 +35,19 @@ function claude() {
         }
     }
 
+    /// Replaces the old ~/bin/notchify wrapper with the plain-notchify wrapper in-place.
+    /// Called on every `notchify launch` so the migration is transparent to the user.
+    static func migrateIfNeeded() {
+        let old = "~/bin/notchify set"
+        for rc in rcFiles {
+            let path = (rc as NSString).expandingTildeInPath
+            guard var contents = try? String(contentsOfFile: path, encoding: .utf8),
+                  contents.contains(old) else { continue }
+            contents = contents.replacingOccurrences(of: "~/bin/notchify set", with: "notchify set")
+            try? contents.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
     static func disable() {
         for rc in rcFiles {
             let path = (rc as NSString).expandingTildeInPath
