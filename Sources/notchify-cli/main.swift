@@ -49,14 +49,7 @@ if command == "quit" {
 
 // ---- launch ----
 if command == "launch" {
-    let appPathFile = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/notchify/app_path")
-    guard let appPath = try? String(contentsOf: appPathFile, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-          !appPath.isEmpty else {
-        fputs("Error: app path not found. Run setup.sh first.\n", stderr)
-        exit(1)
-    }
+    let appPath = resolveAppPath()
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
     proc.arguments = [appPath]
@@ -71,6 +64,31 @@ guard command == "set", args.count >= 3 else {
 }
 
 sendToSocket(args[2])
+
+// MARK: - App path resolution
+
+/// Finds Notchify.app regardless of install method (setup.sh or Homebrew).
+/// 1. Reads ~/.config/notchify/app_path saved by setup.sh
+/// 2. Falls back to walking up from this binary's resolved path
+func resolveAppPath() -> String {
+    let savedPath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/notchify/app_path").path
+    if let saved = try? String(contentsOfFile: savedPath, encoding: .utf8) {
+        let trimmed = saved.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty && FileManager.default.fileExists(atPath: trimmed) {
+            return trimmed
+        }
+    }
+    // Walk up from the resolved binary path to find the enclosing .app
+    let raw = CommandLine.arguments[0]
+    let abs = raw.hasPrefix("/") ? raw : FileManager.default.currentDirectoryPath + "/" + raw
+    var url = URL(fileURLWithPath: abs).resolvingSymlinksInPath()
+    while url.pathComponents.count > 1 {
+        if url.pathExtension == "app" { return url.path }
+        url = url.deletingLastPathComponent()
+    }
+    return url.path
+}
 
 // MARK: - Socket helper
 
