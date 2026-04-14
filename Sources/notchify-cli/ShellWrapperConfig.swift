@@ -20,9 +20,9 @@ enum ShellWrapperConfig {
 
 # Added by Notchify setup — startup animation
 function claude() {
-  ~/bin/notchify set start
+  notchify set start
   command claude "$@"
-  ~/bin/notchify set bye
+  notchify set bye
 }
 """
         for rc in rcFiles {
