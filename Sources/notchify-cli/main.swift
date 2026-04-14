@@ -49,6 +49,12 @@ if command == "quit" {
 
 // ---- launch ----
 if command == "launch" {
+    // Auto-enable all hooks on first launch if none are configured yet
+    let hookState = HooksConfig.load()
+    if !hookState.working { HooksConfig.setWorking(true) }
+    if !hookState.done    { HooksConfig.setDone(true) }
+    if !hookState.waiting { HooksConfig.setWaiting(true) }
+
     let appPath = resolveAppPath()
     guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {
         fputs("notchify launch: Notchify.app not found (resolved: \(appPath))\n", stderr)
