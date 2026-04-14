@@ -20,3 +20,6 @@ piskel/*.zip
 
 # Editor
 .swiftpm/
+
+# Local dev helpers (not for distribution)
+scripts/dev_*.sh
