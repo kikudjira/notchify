@@ -53,9 +53,10 @@ cat > "$CONTENTS/Info.plist" << 'PLIST'
 PLIST
 
 # ---- Ad-hoc sign binaries (required for macOS to run from .app bundle) ----
-codesign --force --sign - "$MACOS_DIR/Notchify"     2>/dev/null
-codesign --force --sign - "$MACOS_DIR/notchify-cli" 2>/dev/null
-codesign --force --sign - "$APP_NAME"               2>/dev/null
+# || true: signing is best-effort; CI runners may not support it
+codesign --force --sign - "$MACOS_DIR/Notchify"     2>/dev/null || true
+codesign --force --sign - "$MACOS_DIR/notchify-cli" 2>/dev/null || true
+codesign --force --sign - "$APP_NAME"               2>/dev/null || true
 echo "==> Signed binaries"
 
 echo "==> App bundle created: $(pwd)/$APP_NAME"
