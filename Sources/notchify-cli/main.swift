@@ -50,9 +50,11 @@ if command == "quit" {
 // ---- launch ----
 if command == "launch" {
     let appPath = resolveAppPath()
+    let binary = appPath + "/Contents/MacOS/Notchify"
     let proc = Process()
-    proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    proc.arguments = [appPath]
+    proc.executableURL = URL(fileURLWithPath: binary)
+    // Detach so the CLI exits immediately while the app keeps running
+    proc.qualityOfService = .userInteractive
     try? proc.run()
     exit(0)
 }
