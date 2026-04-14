@@ -72,10 +72,11 @@ final class NotchWindowController: NSObject {
     }
 
     @objc private func repositionPanel() {
-        guard let panel, let screen = targetScreen() else { return }
-        let frame = windowFrame(screen: screen)
-        panel.setFrame(frame, display: true)
-        panel.orderFrontRegardless()
+        // Close existing panel and recreate — ensures correct screen association
+        // and proper display on both notch and non-notch screens.
+        panel?.close()
+        panel = nil
+        setupPanel()
     }
 
     // MARK: - Screen selection
@@ -108,7 +109,7 @@ final class NotchWindowController: NSObject {
 
         let y = sf.maxY - menuBarH
 
-        return CGRect(x: x, y: y, width: mascotWidth, height: menuBarH)
+        return CGRect(x: x, y: y, width: mascotWidth, height: max(menuBarH, mascotHeight))
     }
 
     private func menuBarHeight(screen: NSScreen) -> CGFloat {
