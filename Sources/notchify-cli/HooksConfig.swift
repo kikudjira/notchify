@@ -11,10 +11,10 @@ enum HooksConfig {
         .appendingPathComponent(".claude/settings.json")
 
     private static let workingCommands = [
-        "~/bin/notchify set working"
+        "notchify set working"
     ]
-    private static let doneCommands    = ["~/bin/notchify set done"]
-    private static let waitingCommands = ["~/bin/notchify set waiting"]
+    private static let doneCommands    = ["notchify set done"]
+    private static let waitingCommands = ["notchify set waiting"]
 
     // Events that carry the "working" hooks
     private static let workingEvents = ["UserPromptSubmit"]
