@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift / Xcode build artifacts
+.build/
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# App bundles (built locally, distributed via GitHub Releases)
+*.app/
+
+# Claude Code local config (contains machine-specific paths)
+.claude/
+
+# Piskel export archives (source .piskel and PNG frames are kept)
+piskel/*.zip
+
+# Editor
+.swiftpm/

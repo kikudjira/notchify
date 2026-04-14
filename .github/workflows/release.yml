@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14   # Apple Silicon runner, Swift 5.9+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: ./scripts/build.sh
+
+      - name: Archive
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ARCHIVE="Notchify-${VERSION}.zip"
+          zip -r "$ARCHIVE" Notchify.app scripts/setup.sh scripts/reset.sh
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          shasum -a 256 "$ARCHIVE"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.VERSION }}
+          body: |
+            ## Install
+
+            ```sh
+            brew tap kikudjira/notchify
+            brew install notchify
+            notchify config
+            ```
+
+            Or download the zip below, unzip, and run `./setup.sh`.
+
+            **SHA256:** run `shasum -a 256 Notchify-${{ env.VERSION }}.zip` to verify.
+          files: ${{ env.ARCHIVE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
