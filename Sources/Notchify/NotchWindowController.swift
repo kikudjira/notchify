@@ -41,15 +41,21 @@ final class NotchWindowController: NSObject {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
         let rootView = NotchView().environmentObject(StatusManager.shared)
-        panel.contentView = NSHostingView(rootView: rootView)
+        let hostView = NSHostingView(rootView: rootView)
+        // Prevent NSHostingView from flashing white before SwiftUI paints
+        hostView.wantsLayer = true
+        hostView.layer?.backgroundColor = .clear
+        panel.contentView = hostView
 
         panel.orderFrontRegardless()
         self.panel = panel
 
-        // Resize panel when the number of active agents changes
+        // Resize panel when the number of active agents changes.
+        // dropFirst() skips the initial emission so we don't animate on setup.
         agentCountCancellable = StatusManager.shared.$agents
             .map(\.count)
             .removeDuplicates()
+            .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] count in
                 self?.resizePanelForAgentCount(max(1, min(count, StatusManager.maxAgents)))

@@ -90,7 +90,9 @@ struct NotchView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NotchPill())
+        // NotchPill only needed when 2+ agents expand the panel beyond the notch width.
+        // For 0–1 agents the notch itself provides the black background.
+        .background(statusManager.agents.count >= 2 ? NotchPill() : nil)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
                    value: statusManager.agents.map(\.id))
     }
