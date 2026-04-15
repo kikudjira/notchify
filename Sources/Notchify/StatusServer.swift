@@ -78,13 +78,17 @@ final class StatusServer {
             let message = String(bytes: buffer.prefix(bytesRead), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            // Ignore "done" while in waiting state so the Notification→Stop
-            // sequence doesn't immediately replace the waiting animation.
+            // Ignore "done" in the first 1.5 s of waiting — the Notification→Stop
+            // sequence fires nearly simultaneously and would instantly replace
+            // the waiting animation.  After the grace period, accept "done"
+            // normally (user answered the permission prompt).
             if message == "done" {
-                let isWaiting = DispatchQueue.main.sync {
-                    StatusManager.shared.status == .waiting
+                let dominated = DispatchQueue.main.sync {
+                    guard StatusManager.shared.status == .waiting,
+                          let since = StatusManager.shared.waitingSince else { return false }
+                    return Date().timeIntervalSince(since) < 1.5
                 }
-                if isWaiting { continue }
+                if dominated { continue }
             }
 
             if message == "quit" {

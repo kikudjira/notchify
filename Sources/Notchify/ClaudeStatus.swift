@@ -22,6 +22,11 @@ final class StatusManager: ObservableObject {
 
     @Published var status: ClaudeStatus = .idle
 
+    /// Timestamp when the mascot entered `.waiting` state.
+    /// Used by StatusServer to distinguish simultaneous Notification+Stop
+    /// from a legitimate done after the user responds to a permission prompt.
+    private(set) var waitingSince: Date?
+
     private var transitionTimer: Timer?
     private var startAnimationDone = false
 
@@ -59,6 +64,7 @@ final class StatusManager: ObservableObject {
             }
 
             self.status = newStatus
+            self.waitingSince = newStatus == .waiting ? Date() : nil
             SoundManager.shared.play(for: newStatus)
 
             switch newStatus {
@@ -68,14 +74,6 @@ final class StatusManager: ObservableObject {
                     withTimeInterval: 1.5, repeats: false
                 ) { [weak self] _ in
                     self?.status = .errorBadge
-                }
-            case .waiting:
-                // waiting → done after 10 s (handles permission denial with no follow-up hook)
-                self.transitionTimer = Timer.scheduledTimer(
-                    withTimeInterval: 10.0, repeats: false
-                ) { [weak self] _ in
-                    self?.status = .done
-                    SoundManager.shared.play(for: .done)
                 }
             default:
                 break
