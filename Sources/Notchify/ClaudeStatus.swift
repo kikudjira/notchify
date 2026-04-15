@@ -78,12 +78,6 @@ final class StatusManager: ObservableObject {
                 if agent.status == .done && newStatus == .waiting {
                     return
                 }
-                // waiting → done: Stop can fire while user hasn't yet reacted to a
-                // permission prompt. Keep waiting until the user actually interacts
-                // (PostToolUse sets working, which clears waiting).
-                if agent.status == .waiting && newStatus == .done {
-                    return
-                }
 
                 // Force-reset to idle before start/bye so SwiftUI always recreates
                 // the animation view even when the status hasn't changed.
