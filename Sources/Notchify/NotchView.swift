@@ -1,25 +1,5 @@
 import SwiftUI
 
-// Black pill that extends from the physical notch —
-// top corners are square (hidden at screen edge), bottom corners are rounded.
-private struct NotchPill: Shape {
-    var radius: CGFloat = 8
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let r = radius
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        p.addArc(center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
-                 radius: r, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
-        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        p.addArc(center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
-                 radius: r, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
-        p.closeSubpath()
-        return p
-    }
-}
-
 // Per-agent slot: same badge/mascot logic as the old single-agent NotchView.
 private struct AgentSlotView: View {
     let agent: AgentState
@@ -90,9 +70,6 @@ struct NotchView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // NotchPill only needed when 2+ agents expand the panel beyond the notch width.
-        // For 0–1 agents the notch itself provides the black background.
-        .background(statusManager.agents.count >= 2 ? NotchPill() : nil)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
                    value: statusManager.agents.map(\.id))
     }
