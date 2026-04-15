@@ -21,7 +21,6 @@ struct AgentState: Identifiable {
     let id: String
     var status: ClaudeStatus
     var joinTime: Date
-    var waitingSince: Date?
     var startAnimationDone: Bool
     var lastActivity: Date
 }
@@ -36,14 +35,6 @@ final class StatusManager: ObservableObject {
     private var errorTimers: [String: DispatchWorkItem] = [:]
 
     private init() {}
-
-    // MARK: - Read helpers (called from background thread in StatusServer)
-
-    func waitingSince(forAgent id: String) -> Date? {
-        // Accessed from background thread — safe because Date reads are atomic
-        // and we only need approximate timing for the grace-period check.
-        agents.first(where: { $0.id == id })?.waitingSince
-    }
 
     // MARK: - Mutations (must be called on main queue)
 
@@ -82,6 +73,17 @@ final class StatusManager: ObservableObject {
                 if agent.status == .bye && newStatus != .idle {
                     return
                 }
+                // done → waiting: idle_prompt fires after Stop and must not erase the
+                // celebration animation. Only working/start/bye/idle can clear done.
+                if agent.status == .done && newStatus == .waiting {
+                    return
+                }
+                // waiting → done: Stop can fire while user hasn't yet reacted to a
+                // permission prompt. Keep waiting until the user actually interacts
+                // (PostToolUse sets working, which clears waiting).
+                if agent.status == .waiting && newStatus == .done {
+                    return
+                }
 
                 // Force-reset to idle before start/bye so SwiftUI always recreates
                 // the animation view even when the status hasn't changed.
@@ -93,7 +95,6 @@ final class StatusManager: ObservableObject {
                 }
 
                 self.agents[idx].status       = newStatus
-                self.agents[idx].waitingSince = newStatus == .waiting ? Date() : nil
                 self.agents[idx].lastActivity = Date()
 
             } else {
@@ -104,7 +105,6 @@ final class StatusManager: ObservableObject {
                     id: agentID,
                     status: newStatus,
                     joinTime: Date(),
-                    waitingSince: newStatus == .waiting ? Date() : nil,
                     startAnimationDone: false,
                     lastActivity: Date()
                 )

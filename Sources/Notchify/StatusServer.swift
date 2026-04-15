@@ -85,18 +85,6 @@ final class StatusServer {
             let commandStr = String(parts[0])
             let agentID = parts.count > 1 ? String(parts[1]) : "default"
 
-            // Ignore "done" in the first 1.5 s of waiting for this agent —
-            // the Notification→Stop sequence fires nearly simultaneously and
-            // would instantly replace the waiting animation.
-            if commandStr == "done" {
-                let dominated = DispatchQueue.main.sync {
-                    guard let since = StatusManager.shared.waitingSince(forAgent: agentID)
-                    else { return false }
-                    return Date().timeIntervalSince(since) < 1.5
-                }
-                if dominated { continue }
-            }
-
             if commandStr == "quit" {
                 DispatchQueue.main.async {
                     NSApplication.shared.terminate(nil)
