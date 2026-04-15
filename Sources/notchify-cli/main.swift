@@ -49,13 +49,14 @@ if command == "quit" {
 
 // ---- launch ----
 if command == "launch" {
+    // Migrate old hooks/wrapper before checking state
+    HooksConfig.migrate()
+    ShellWrapperConfig.migrateIfNeeded()
     // Auto-enable all hooks and startup animation on first launch if none are configured yet
     let hookState = HooksConfig.load()
     if !hookState.working { HooksConfig.setWorking(true) }
     if !hookState.done    { HooksConfig.setDone(true) }
     if !hookState.waiting { HooksConfig.setWaiting(true) }
-    ShellWrapperConfig.migrateIfNeeded()
-    if !ShellWrapperConfig.isEnabled() { ShellWrapperConfig.enable() }
 
     let appPath = resolveAppPath()
     guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {
@@ -87,11 +88,24 @@ if command == "launch" {
 
 // ---- set ----
 guard command == "set", args.count >= 3 else {
-    fputs("Usage: notchify set <status> | notchify quit | notchify config | notchify help\n", stderr)
+    fputs("Usage: notchify set <status> [--agent <id>] | notchify quit | notchify config | notchify help\n", stderr)
     exit(1)
 }
 
-sendToSocket(args[2])
+let statusStr = args[2]
+var agentID: String? = nil
+var argIdx = 3
+while argIdx < args.count {
+    if args[argIdx] == "--agent", argIdx + 1 < args.count {
+        let id = args[argIdx + 1]
+        if !id.isEmpty { agentID = id }
+        argIdx += 2
+    } else {
+        argIdx += 1
+    }
+}
+let message = agentID.map { "\(statusStr) \($0)" } ?? statusStr
+sendToSocket(message)
 
 // MARK: - Socket helper
 

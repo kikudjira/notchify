@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 /// Transparent overlay panel positioned INSIDE the notch dead-zone,
 /// flush against the right side of the notch zone.
@@ -7,6 +8,7 @@ import SwiftUI
 /// appears to live on the notch itself.
 final class NotchWindowController: NSObject {
     private var panel: NSPanel?
+    private var agentCountCancellable: AnyCancellable?
 
     // Canvas size (must match CrabView: 20×12 pixels at ps=3.0)
     private let mascotWidth:  CGFloat = 20 * 3   // 60 pt
@@ -22,7 +24,7 @@ final class NotchWindowController: NSObject {
 
     private func setupPanel() {
         guard let screen = targetScreen() else { return }
-        let frame = windowFrame(screen: screen)
+        let frame = windowFrame(screen: screen, agentCount: 1)
 
         let panel = NSPanel(
             contentRect: frame,
@@ -43,6 +45,15 @@ final class NotchWindowController: NSObject {
 
         panel.orderFrontRegardless()
         self.panel = panel
+
+        // Resize panel when the number of active agents changes
+        agentCountCancellable = StatusManager.shared.$agents
+            .map(\.count)
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] count in
+                self?.resizePanelForAgentCount(max(1, min(count, StatusManager.maxAgents)))
+            }
     }
 
     private func observeScreenChanges() {
@@ -61,11 +72,21 @@ final class NotchWindowController: NSObject {
     }
 
     @objc private func repositionPanel() {
-        // Close existing panel and recreate — ensures correct screen association
-        // and proper display on both notch and non-notch screens.
+        // Cancel subscription before teardown so the sink doesn't fire
+        // on the closing panel while a new one is being set up.
+        agentCountCancellable?.cancel()
+        agentCountCancellable = nil
         panel?.close()
         panel = nil
         setupPanel()
+    }
+
+    // MARK: - Dynamic resize
+
+    private func resizePanelForAgentCount(_ count: Int) {
+        guard let panel, let screen = targetScreen() else { return }
+        let newFrame = windowFrame(screen: screen, agentCount: count)
+        panel.setFrame(newFrame, display: true, animate: true)
     }
 
     // MARK: - Screen selection
@@ -83,27 +104,27 @@ final class NotchWindowController: NSObject {
 
     // MARK: - Frame
 
-    private func windowFrame(screen: NSScreen) -> CGRect {
+    private func windowFrame(screen: NSScreen, agentCount: Int = 1) -> CGRect {
         let settings = DisplayConfig.load()
         let sf = screen.frame
-        let menuBarH = menuBarHeight(screen: screen)
-        let windowH  = max(menuBarH, mascotHeight)
-        let hOffset  = CGFloat(settings.horizontalOffset)
-        let vOffset  = CGFloat(settings.verticalOffset)  // positive = down
+        let menuBarH  = menuBarHeight(screen: screen)
+        let windowH   = max(menuBarH, mascotHeight)
+        let windowW   = mascotWidth * CGFloat(agentCount)
+        let hOffset   = CGFloat(settings.horizontalOffset)
+        let vOffset   = CGFloat(settings.verticalOffset)  // positive = down
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
+            // Notch screen: anchor left edge to notch-left boundary, grow right
             x = sf.minX + (sf.width - rightArea.width) - 2 + hOffset
         } else {
-            // Non-notch: center the mascot in the menu bar
-            x = sf.minX + (sf.width - mascotWidth) / 2 + hOffset
+            // Non-notch: center the panel in the menu bar
+            x = sf.minX + (sf.width - windowW) / 2 + hOffset
         }
 
-        // Anchor top of window to screen top so the mascot isn't clipped,
-        // then apply vertical offset (positive shifts down).
         let y = sf.maxY - windowH - vOffset
 
-        return CGRect(x: x, y: y, width: mascotWidth, height: windowH)
+        return CGRect(x: x, y: y, width: windowW, height: windowH)
     }
 
     private func menuBarHeight(screen: NSScreen) -> CGFloat {

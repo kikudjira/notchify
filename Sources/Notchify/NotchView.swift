@@ -20,18 +20,19 @@ private struct NotchPill: Shape {
     }
 }
 
-struct NotchView: View {
-    @EnvironmentObject var statusManager: StatusManager
+// Per-agent slot: same badge/mascot logic as the old single-agent NotchView.
+private struct AgentSlotView: View {
+    let agent: AgentState
 
     private var showMascot: Bool {
-        switch statusManager.status {
+        switch agent.status {
         case .idle, .doneBadge, .errorBadge: return false
         default: return true
         }
     }
 
     private var badgeText: String? {
-        switch statusManager.status {
+        switch agent.status {
         case .doneBadge:  return "Done"
         case .errorBadge: return "Error"
         default:          return nil
@@ -39,14 +40,13 @@ struct NotchView: View {
     }
 
     private var badgeColor: Color {
-        statusManager.status == .doneBadge
+        agent.status == .doneBadge
             ? Color(red: 0.12, green: 0.78, blue: 0.28)
             : Color(red: 0.95, green: 0.22, blue: 0.12)
     }
 
     var body: some View {
         ZStack {
-            // Badge persists after mascot leaves
             if let text = badgeText {
                 Text(text)
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -66,12 +66,32 @@ struct NotchView: View {
             }
 
             if showMascot {
-                CrabView(status: statusManager.status)
+                CrabView(status: agent.status, agentID: agent.id)
                     .transition(.opacity)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 60, height: 36)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
-                   value: statusManager.status)
+                   value: agent.status)
+    }
+}
+
+struct NotchView: View {
+    @EnvironmentObject var statusManager: StatusManager
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(statusManager.agents) { agent in
+                AgentSlotView(agent: agent)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.85, anchor: .top)),
+                        removal:   .opacity
+                    ))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(NotchPill())
+        .animation(.spring(response: 0.35, dampingFraction: 0.75),
+                   value: statusManager.agents.map(\.id))
     }
 }
