@@ -4,8 +4,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "==> Building Notchify (release)..."
-swift build -c release --product Notchify
-swift build -c release --product notchify-cli
+swift build -c release --product Notchify ${SWIFT_BUILD_FLAGS:-}
+swift build -c release --product notchify-cli ${SWIFT_BUILD_FLAGS:-}
 
 APP_NAME="Notchify.app"
 CONTENTS="$APP_NAME/Contents"
