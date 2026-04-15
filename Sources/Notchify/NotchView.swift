@@ -80,7 +80,7 @@ struct NotchView: View {
     @EnvironmentObject var statusManager: StatusManager
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: -20) {
             ForEach(statusManager.agents) { agent in
                 AgentSlotView(agent: agent)
                     .transition(.asymmetric(

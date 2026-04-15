@@ -11,8 +11,10 @@ final class NotchWindowController: NSObject {
     private var agentCountCancellable: AnyCancellable?
 
     // Canvas size (must match CrabView: 20×12 pixels at ps=3.0)
-    private let mascotWidth:  CGFloat = 20 * 3   // 60 pt
-    private let mascotHeight: CGFloat = 12 * 3   // 36 pt
+    private let mascotWidth:   CGFloat = 20 * 3   // 60 pt
+    private let mascotHeight:  CGFloat = 12 * 3   // 36 pt
+    // Negative spacing between mascot slots in NotchView — must match HStack(spacing:)
+    private let mascotSpacing: CGFloat = -20
 
     override init() {
         super.init()
@@ -117,7 +119,8 @@ final class NotchWindowController: NSObject {
         let sf = screen.frame
         let menuBarH  = menuBarHeight(screen: screen)
         let windowH   = max(menuBarH, mascotHeight)
-        let windowW   = mascotWidth * CGFloat(agentCount)
+        // Account for negative HStack spacing: each additional slot adds (mascotWidth + spacing) pt
+        let windowW   = mascotWidth + (mascotWidth + mascotSpacing) * CGFloat(agentCount - 1)
         let hOffset   = CGFloat(settings.horizontalOffset)
         let vOffset   = CGFloat(settings.verticalOffset)  // positive = down
 
