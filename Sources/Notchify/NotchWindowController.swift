@@ -92,7 +92,9 @@ final class NotchWindowController: NSObject {
     private func resizePanelForAgentCount(_ count: Int) {
         guard let panel, let screen = targetScreen() else { return }
         let newFrame = windowFrame(screen: screen, agentCount: count)
-        panel.setFrame(newFrame, display: true, animate: true)
+        // animate: false — SwiftUI handles the content transition;
+        // AppKit frame animation causes a white flash during resize.
+        panel.setFrame(newFrame, display: true, animate: false)
     }
 
     // MARK: - Screen selection
