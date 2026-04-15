@@ -22,7 +22,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME}"
           ARCHIVE="Notchify-${VERSION}.zip"
-          zip -r "$ARCHIVE" Notchify.app scripts/setup.sh scripts/reset.sh
+          zip -r "$ARCHIVE" Notchify.app scripts/setup.sh
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           shasum -a 256 "$ARCHIVE"

@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Combine
 
 /// Transparent overlay panel positioned INSIDE the notch dead-zone,
 /// flush against the right side of the notch zone.
@@ -8,7 +7,6 @@ import Combine
 /// appears to live on the notch itself.
 final class NotchWindowController: NSObject {
     private var panel: NSPanel?
-    private var cancellables = Set<AnyCancellable>()
 
     // Canvas size (must match CrabView: 20×12 pixels at ps=3.0)
     private let mascotWidth:  CGFloat = 20 * 3   // 60 pt
@@ -17,7 +15,6 @@ final class NotchWindowController: NSObject {
     override init() {
         super.init()
         setupPanel()
-        observeStatus()
         observeScreenChanges()
     }
 
@@ -46,14 +43,6 @@ final class NotchWindowController: NSObject {
 
         panel.orderFrontRegardless()
         self.panel = panel
-    }
-
-    private func observeStatus() {
-        StatusManager.shared.$status
-            .receive(on: DispatchQueue.main)
-            .removeDuplicates()
-            .sink { [weak self] _ in _ = self }
-            .store(in: &cancellables)
     }
 
     private func observeScreenChanges() {

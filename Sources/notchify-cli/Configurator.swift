@@ -231,59 +231,36 @@ struct Configurator {
             if lower == "b" { return }
             if lower == "a" {
                 settings.screenIndex = -1
-                DisplayConfig.save(settings); sendReposition()
+                DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Screen: auto")
                 continue
             }
             if lower == "0" {
                 settings.horizontalOffset = 0
                 settings.verticalOffset   = 0
-                DisplayConfig.save(settings); sendReposition()
+                DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Offsets reset")
                 continue
             }
             // screen selection: single number within screen list range
             if let n = Int(lower), n >= 1, n <= screens.count {
                 settings.screenIndex = n - 1
-                DisplayConfig.save(settings); sendReposition()
+                DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Screen: \(screens[n - 1].name)"); continue
             }
             // h<N>  — set exact horizontal offset (e.g. h-20, h40)
             if lower.hasPrefix("h"), let n = Int(lower.dropFirst()) {
                 settings.horizontalOffset = n
-                DisplayConfig.save(settings); sendReposition()
+                DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Horizontal: \(n) pt"); continue
             }
             // v<N>  — set exact vertical offset (e.g. v8, v-4)
             if lower.hasPrefix("v"), let n = Int(lower.dropFirst()) {
                 settings.verticalOffset = n
-                DisplayConfig.save(settings); sendReposition()
+                DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Vertical: \(n) pt"); continue
             }
         }
-    }
-
-    private static func sendReposition() {
-        // Tell the running app to re-read config and reposition immediately.
-        // Reuse the socket helper from main.swift via a local inline send.
-        let socketPath = "/tmp/notchify.sock"
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return }
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        socketPath.withCString { cStr in
-            withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-                UnsafeMutableRawPointer(ptr).copyMemory(from: cStr, byteCount: strlen(cStr) + 1)
-            }
-        }
-        let ok = withUnsafePointer(to: addr) { p in
-            p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard ok == 0 else { close(fd); return }
-        "reposition".withCString { _ = Darwin.write(fd, $0, 10) }
-        close(fd)
     }
 
     // MARK: - Utilities

@@ -80,8 +80,11 @@ final class StatusServer {
 
             // Ignore "done" while in waiting state so the Notification→Stop
             // sequence doesn't immediately replace the waiting animation.
-            if message == "done" && StatusManager.shared.status == .waiting {
-                continue
+            if message == "done" {
+                let isWaiting = DispatchQueue.main.sync {
+                    StatusManager.shared.status == .waiting
+                }
+                if isWaiting { continue }
             }
 
             if message == "quit" {

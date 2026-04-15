@@ -92,12 +92,12 @@ def ensure_hook(event, command):
     event_hooks.append({"hooks": [{"type": "command", "command": command}]})
 
 if install_working == "true":
-    ensure_hook("UserPromptSubmit", "~/bin/notchify set working")
-    ensure_hook("PostToolUse",      "~/bin/notchify set working")
+    ensure_hook("UserPromptSubmit", "notchify set working")
+    ensure_hook("PostToolUse",      "notchify set working")
 if install_done == "true":
-    ensure_hook("Stop",             "~/bin/notchify set done")
+    ensure_hook("Stop",             "notchify set done")
 if install_waiting == "true":
-    ensure_hook("Notification",     "~/bin/notchify set waiting")
+    ensure_hook("Notification",     "notchify set waiting")
 
 with open(path, "w") as f:
     json.dump(settings, f, indent=2)
@@ -119,9 +119,9 @@ if [[ "$answer" =~ ^[Yy]$ ]]; then
 
 # Added by Notchify setup — startup animation
 function claude() {
-  ~/bin/notchify set start
+  notchify set start
   command claude "$@"
-  ~/bin/notchify set bye
+  notchify set bye
 }
 WRAPPER
             echo "==> Added claude wrapper to $rc_file"
