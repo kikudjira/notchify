@@ -69,7 +69,7 @@ struct NotchView: View {
                     ))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
                    value: statusManager.agents.map(\.id))
     }
