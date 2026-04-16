@@ -38,9 +38,9 @@ cat > "$CONTENTS/Info.plist" << 'PLIST'
     <key>CFBundleName</key>
     <string>Notchify</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1.0.23</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.0.23</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSPrincipalClass</key>
