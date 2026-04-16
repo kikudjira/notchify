@@ -73,6 +73,8 @@ Available system sound names: Hero, Glass, Ping, Basso, Blow, Bottle, Frog, Funk
 
 Custom file example: `{ "file": "~/sounds/done.mp3" }`. Set to `null` to disable a state.
 
+Top-level `volume` (0.0–1.0) applies to every sound and is scaled further by the macOS system output level. Example: `{ "volume": 0.4, "start": { "system": "Hero" }, ... }`. Missing or `1.0` means full volume.
+
 ### Startup animation
 
 Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.

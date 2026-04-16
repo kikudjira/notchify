@@ -15,6 +15,9 @@ enum SoundEntry: Equatable {
 }
 
 struct SoundsConfig {
+    /// Global volume 0.0–1.0, applied to every sound. Scaled further by macOS system volume.
+    var volume: Float = 1.0
+
     var start:   SoundEntry = .system("Hero")
     var working: SoundEntry = .none
     var waiting: SoundEntry = .system("Ping")
@@ -38,6 +41,7 @@ struct SoundsConfig {
         else { return SoundsConfig() }
 
         var config = SoundsConfig()
+        config.volume  = parseVolume(json["volume"])
         config.start   = parseEntry(json["start"])
         config.working = parseEntry(json["working"])
         config.waiting = parseEntry(json["waiting"])
@@ -52,7 +56,7 @@ struct SoundsConfig {
         let dir = SoundsConfig.configURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let json: [String: Any] = [
+        var json: [String: Any] = [
             "start":   encodeEntry(start),
             "working": encodeEntry(working),
             "waiting": encodeEntry(waiting),
@@ -61,6 +65,8 @@ struct SoundsConfig {
             "error":   encodeEntry(error),
             "idle":    encodeEntry(idle)
         ]
+        if volume < 0.999 { json["volume"] = volume }
+
         guard let data = try? JSONSerialization.data(
             withJSONObject: json,
             options: [.prettyPrinted, .sortedKeys]
@@ -76,6 +82,13 @@ struct SoundsConfig {
         if let name = dict["system"] { return .system(name) }
         if let path = dict["file"]   { return .file(path) }
         return .none
+    }
+
+    private static func parseVolume(_ value: Any?) -> Float {
+        guard let value = value else { return 1.0 }
+        if let n = value as? NSNumber { return max(0.0, min(1.0, n.floatValue)) }
+        if let s = value as? String, let n = Float(s) { return max(0.0, min(1.0, n)) }
+        return 1.0
     }
 
     private func encodeEntry(_ entry: SoundEntry) -> Any {

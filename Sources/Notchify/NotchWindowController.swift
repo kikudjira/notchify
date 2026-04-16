@@ -30,7 +30,8 @@ final class NotchWindowController: NSObject {
 
     private func setupPanel() {
         guard let screen = targetScreen() else { return }
-        let frame = windowFrame(screen: screen)
+        let settings = DisplayConfig.load()
+        let frame = windowFrame(screen: screen, settings: settings)
 
         let panel = NSPanel(
             contentRect: frame,
@@ -46,7 +47,8 @@ final class NotchWindowController: NSObject {
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
-        let rootView = NotchView().environmentObject(StatusManager.shared)
+        let rootView = NotchView(direction: settings.mascotDirection)
+            .environmentObject(StatusManager.shared)
         let hostView = NSHostingView(rootView: rootView)
         // Prevent NSHostingView from flashing white before SwiftUI paints
         hostView.wantsLayer = true
@@ -93,8 +95,7 @@ final class NotchWindowController: NSObject {
 
     // MARK: - Frame
 
-    private func windowFrame(screen: NSScreen) -> CGRect {
-        let settings = DisplayConfig.load()
+    private func windowFrame(screen: NSScreen, settings: DisplaySettings) -> CGRect {
         let sf       = screen.frame
         let menuBarH = menuBarHeight(screen: screen)
         let windowH  = max(menuBarH, mascotHeight)
@@ -104,9 +105,19 @@ final class NotchWindowController: NSObject {
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
-            // Notch screen: anchor left edge to notch-right boundary, grow right.
-            // Extra transparent area beyond active slots is harmless.
-            x = sf.minX + (sf.width - rightArea.width) - 2 + hOffset
+            // Notch screen.
+            let notchRightEdge = sf.minX + (sf.width - rightArea.width)
+            switch settings.mascotDirection {
+            case .right:
+                // Anchor panel's left edge just left of the notch's right boundary;
+                // HStack(.leading) places the first mascot flush against the notch.
+                x = notchRightEdge - 2 + hOffset
+            case .left:
+                // Anchor panel's right edge just right of the notch's left boundary;
+                // HStack(.trailing) places the newest mascot flush against the notch.
+                let notchLeftEdge = screen.auxiliaryTopLeftArea?.maxX ?? (notchRightEdge - 200)
+                x = notchLeftEdge + 2 - windowW + hOffset
+            }
         } else {
             // Non-notch: center the panel in the menu bar
             x = sf.minX + (sf.width - windowW) / 2 + hOffset

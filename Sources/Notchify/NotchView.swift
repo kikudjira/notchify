@@ -58,6 +58,7 @@ private struct AgentSlotView: View {
 
 struct NotchView: View {
     @EnvironmentObject var statusManager: StatusManager
+    let direction: MascotDirection
 
     var body: some View {
         HStack(spacing: -20) {
@@ -69,7 +70,8 @@ struct NotchView: View {
                     ))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity,
+               alignment: direction == .right ? .leading : .trailing)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
                    value: statusManager.agents.map(\.id))
     }

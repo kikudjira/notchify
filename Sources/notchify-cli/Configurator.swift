@@ -74,6 +74,9 @@ struct Configurator {
             var config = SoundsConfig.load()
 
             ANSI.header("Sounds", subtitle: "~/.config/notchify/sounds.json")
+            let volumePct = Int((config.volume * 100).rounded())
+            print("  Volume  \(ANSI.cyan)\(volumePct)%\(ANSI.reset)  \(ANSI.dim)v<N>  e.g. v50  v100\(ANSI.reset)")
+            print()
             let states: [(String, SoundEntry)] = [
                 ("start",   config.start),
                 ("working", config.working),
@@ -94,9 +97,21 @@ struct Configurator {
             print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
             print()
 
-            guard let ch = prompt() else { return }
-            if ch == "b" { return }
-            guard let idx = ch.wholeNumberValue, idx >= 1, idx <= 7 else { continue }
+            print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
+            fflush(stdout)
+            guard let input = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespaces),
+                  !input.isEmpty else { continue }
+            let lower = input.lowercased()
+
+            if lower == "b" { return }
+            // v<N> — set global volume
+            if lower.hasPrefix("v"), let n = Int(lower.dropFirst()), n >= 0, n <= 100 {
+                config.volume = Float(n) / 100.0
+                config.save()
+                flash("Volume: \(n)%")
+                continue
+            }
+            guard let idx = Int(lower), idx >= 1, idx <= 7 else { continue }
 
             let (stateName, _) = states[idx - 1]
             if let newEntry = pickSound(for: stateName) {
@@ -217,6 +232,8 @@ struct Configurator {
             print()
             print("  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)h<N>  e.g. h-20  h40\(ANSI.reset)")
             print("  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)v<N>  e.g. v8   v-4\(ANSI.reset)")
+            let arrow = settings.mascotDirection == .right ? "→" : "←"
+            print("  Direction   \(ANSI.cyan)\(settings.mascotDirection.rawValue) of notch \(arrow)\(ANSI.reset)  \(ANSI.dim)d    toggle (new mascots side)\(ANSI.reset)")
             print("  0   Reset both offsets")
             print()
             print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
@@ -240,6 +257,12 @@ struct Configurator {
                 settings.verticalOffset   = 0
                 DisplayConfig.save(settings); sendToSocket("reposition")
                 flash("Offsets reset")
+                continue
+            }
+            if lower == "d" {
+                settings.mascotDirection = settings.mascotDirection == .right ? .left : .right
+                DisplayConfig.save(settings); sendToSocket("reposition")
+                flash("Direction: \(settings.mascotDirection.rawValue) of notch")
                 continue
             }
             // screen selection: single number within screen list range
