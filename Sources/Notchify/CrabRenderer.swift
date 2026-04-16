@@ -51,6 +51,7 @@ private struct WorkingAnimationView: View {
 // MARK: - Start animation: plays once on launch, freezes on last frame
 
 private struct StartAnimationView: View {
+    let agentID: String
     @State private var frame = 0
 
     // Load however many start_XX.png frames exist in the bundle
@@ -85,7 +86,7 @@ private struct StartAnimationView: View {
             if frame < frameNames.count - 1 {
                 frame += 1
             } else {
-                StatusManager.shared.markStartDone()
+                StatusManager.shared.markStartDone(agentID: agentID)
             }
         }
     }
@@ -94,6 +95,7 @@ private struct StartAnimationView: View {
 // MARK: - Bye animation: plays once, then goes idle
 
 private struct ByeAnimationView: View {
+    let agentID: String
     @State private var frame = 0
     @State private var done = false
 
@@ -126,7 +128,7 @@ private struct ByeAnimationView: View {
             // If no bye frames exist, skip straight to idle so start animation
             // is guaranteed a fresh CrabView on the next launch.
             if frameNames.isEmpty {
-                StatusManager.shared.update(.idle)
+                StatusManager.shared.removeAgent(id: agentID)
             }
         }
         .onReceive(
@@ -137,7 +139,7 @@ private struct ByeAnimationView: View {
                 frame += 1
             } else {
                 done = true
-                StatusManager.shared.update(.idle)
+                StatusManager.shared.removeAgent(id: agentID)
             }
         }
     }
@@ -206,6 +208,7 @@ private struct WaitingAnimationView: View {
 
 struct CrabView: View {
     let status: ClaudeStatus
+    let agentID: String
     @State private var frame: Int = 0
 
     private let ps: CGFloat     = 3.0
@@ -214,9 +217,9 @@ struct CrabView: View {
 
     var body: some View {
         if status == .start {
-            StartAnimationView()
+            StartAnimationView(agentID: agentID)
         } else if status == .bye {
-            ByeAnimationView()
+            ByeAnimationView(agentID: agentID)
         } else if status == .working {
             WorkingAnimationView()
         } else if status == .done {

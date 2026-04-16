@@ -4,7 +4,8 @@ import AppKit
 
 /// Listens on a Unix domain socket and updates StatusManager when commands arrive.
 /// Protocol: plain text commands terminated by newline or connection close.
-/// Valid commands: "working", "waiting", "done", "error", "idle"
+/// Wire format: "<command>" or "<command> <agentID>"
+/// Valid commands: "working", "waiting", "done", "error", "idle", "start", "bye"
 final class StatusServer {
     static let socketPath = "/tmp/notchify.sock"
 
@@ -69,8 +70,8 @@ final class StatusServer {
             let clientFd = accept(serverFd, nil, nil)
             guard clientFd >= 0 else { continue }
 
-            var buffer = [UInt8](repeating: 0, count: 128)
-            let bytesRead = read(clientFd, &buffer, 127)
+            var buffer = [UInt8](repeating: 0, count: 256)
+            let bytesRead = read(clientFd, &buffer, 255)
             close(clientFd)
 
             guard bytesRead > 0 else { continue }
@@ -78,31 +79,24 @@ final class StatusServer {
             let message = String(bytes: buffer.prefix(bytesRead), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            // Ignore "done" in the first 1.5 s of waiting — the Notification→Stop
-            // sequence fires nearly simultaneously and would instantly replace
-            // the waiting animation.  After the grace period, accept "done"
-            // normally (user answered the permission prompt).
-            if message == "done" {
-                let dominated = DispatchQueue.main.sync {
-                    guard StatusManager.shared.status == .waiting,
-                          let since = StatusManager.shared.waitingSince else { return false }
-                    return Date().timeIntervalSince(since) < 1.5
-                }
-                if dominated { continue }
-            }
+            // Parse: "<command>" or "<command> <agentID>"
+            let parts = message.split(separator: " ", maxSplits: 1)
+            guard !parts.isEmpty else { continue }
+            let commandStr = String(parts[0])
+            let agentID = parts.count > 1 ? String(parts[1]) : "default"
 
-            if message == "quit" {
+            if commandStr == "quit" {
                 DispatchQueue.main.async {
                     NSApplication.shared.terminate(nil)
                 }
-            } else if message == "reposition" {
+            } else if commandStr == "reposition" {
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: .notchifyReposition, object: nil
                     )
                 }
-            } else if let status = ClaudeStatus(rawValue: message) {
-                StatusManager.shared.update(status)
+            } else if let status = ClaudeStatus(rawValue: commandStr) {
+                StatusManager.shared.update(status, agentID: agentID)
             }
         }
     }

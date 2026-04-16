@@ -9,8 +9,16 @@ final class NotchWindowController: NSObject {
     private var panel: NSPanel?
 
     // Canvas size (must match CrabView: 20×12 pixels at ps=3.0)
-    private let mascotWidth:  CGFloat = 20 * 3   // 60 pt
-    private let mascotHeight: CGFloat = 12 * 3   // 36 pt
+    private let mascotWidth:   CGFloat = 20 * 3   // 60 pt
+    private let mascotHeight:  CGFloat = 12 * 3   // 36 pt
+    // Negative spacing between mascot slots in NotchView — must match HStack(spacing:)
+    private let mascotSpacing: CGFloat = -20
+
+    // Panel is always the maximum width (enough for StatusManager.maxAgents slots).
+    // This avoids AppKit resize flashes — transparent areas simply show nothing.
+    private var maxPanelWidth: CGFloat {
+        mascotWidth + (mascotWidth + mascotSpacing) * CGFloat(StatusManager.maxAgents - 1)
+    }
 
     override init() {
         super.init()
@@ -39,7 +47,11 @@ final class NotchWindowController: NSObject {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
         let rootView = NotchView().environmentObject(StatusManager.shared)
-        panel.contentView = NSHostingView(rootView: rootView)
+        let hostView = NSHostingView(rootView: rootView)
+        // Prevent NSHostingView from flashing white before SwiftUI paints
+        hostView.wantsLayer = true
+        hostView.layer?.backgroundColor = .clear
+        panel.contentView = hostView
 
         panel.orderFrontRegardless()
         self.panel = panel
@@ -61,8 +73,6 @@ final class NotchWindowController: NSObject {
     }
 
     @objc private func repositionPanel() {
-        // Close existing panel and recreate — ensures correct screen association
-        // and proper display on both notch and non-notch screens.
         panel?.close()
         panel = nil
         setupPanel()
@@ -85,25 +95,26 @@ final class NotchWindowController: NSObject {
 
     private func windowFrame(screen: NSScreen) -> CGRect {
         let settings = DisplayConfig.load()
-        let sf = screen.frame
+        let sf       = screen.frame
         let menuBarH = menuBarHeight(screen: screen)
         let windowH  = max(menuBarH, mascotHeight)
+        let windowW  = maxPanelWidth   // always max — transparent area causes no flash
         let hOffset  = CGFloat(settings.horizontalOffset)
         let vOffset  = CGFloat(settings.verticalOffset)  // positive = down
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
+            // Notch screen: anchor left edge to notch-right boundary, grow right.
+            // Extra transparent area beyond active slots is harmless.
             x = sf.minX + (sf.width - rightArea.width) - 2 + hOffset
         } else {
-            // Non-notch: center the mascot in the menu bar
-            x = sf.minX + (sf.width - mascotWidth) / 2 + hOffset
+            // Non-notch: center the panel in the menu bar
+            x = sf.minX + (sf.width - windowW) / 2 + hOffset
         }
 
-        // Anchor top of window to screen top so the mascot isn't clipped,
-        // then apply vertical offset (positive shifts down).
         let y = sf.maxY - windowH - vOffset
 
-        return CGRect(x: x, y: y, width: mascotWidth, height: windowH)
+        return CGRect(x: x, y: y, width: windowW, height: windowH)
     }
 
     private func menuBarHeight(screen: NSScreen) -> CGFloat {

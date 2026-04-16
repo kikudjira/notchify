@@ -11,10 +11,15 @@ enum HooksConfig {
         .appendingPathComponent(".claude/settings.json")
 
     private static let workingCommands = [
-        "notchify set working"
+        "notchify set working --agent \"$NOTCHIFY_AGENT_ID\""
     ]
-    private static let doneCommands    = ["notchify set done"]
-    private static let waitingCommands = ["notchify set waiting"]
+    private static let doneCommands    = ["notchify set done --agent \"$NOTCHIFY_AGENT_ID\""]
+    private static let waitingCommands = ["notchify set waiting --agent \"$NOTCHIFY_AGENT_ID\""]
+
+    // Old bare commands (pre-multi-agent) — used for migration detection
+    private static let oldWorkingCommand = "notchify set working"
+    private static let oldDoneCommand    = "notchify set done"
+    private static let oldWaitingCommand = "notchify set waiting"
 
     // Events that carry the "working" hooks.
     // PostToolUse fires after permission is granted and tool executes —
@@ -71,6 +76,36 @@ enum HooksConfig {
         }
         json["hooks"] = hooks
         saveJSON(json)
+    }
+
+    /// Replaces old bare-command hooks (without --agent) with the new form.
+    /// Called on every `notchify launch` — idempotent.
+    static func migrate() {
+        var json = loadJSON() ?? [:]
+        var hooks = json["hooks"] as? [String: Any] ?? [:]
+        var changed = false
+
+        let migrations: [(old: String, new: String, events: [String])] = [
+            (oldWorkingCommand, workingCommands[0], workingEvents),
+            (oldDoneCommand,    doneCommands[0],    ["Stop"]),
+            (oldWaitingCommand, waitingCommands[0], ["Notification"]),
+        ]
+
+        for m in migrations {
+            for event in m.events {
+                if commandPresent(m.old, in: hooks, event: event)
+                    && !commandPresent(m.new, in: hooks, event: event) {
+                    removeHook(command: m.old, event: event, hooks: &hooks)
+                    addHook(command: m.new, event: event, hooks: &hooks)
+                    changed = true
+                }
+            }
+        }
+
+        if changed {
+            json["hooks"] = hooks
+            saveJSON(json)
+        }
     }
 
     // MARK: - Helpers
