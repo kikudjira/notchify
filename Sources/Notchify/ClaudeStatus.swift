@@ -34,7 +34,14 @@ final class StatusManager: ObservableObject {
     /// Per-agent timers for error → errorBadge transition.
     private var errorTimers: [String: DispatchWorkItem] = [:]
 
-    private init() {}
+    /// Fires `bye` when a tracked shell PID disappears (terminal closed without `exit`).
+    private let watcher = ProcessWatcher()
+
+    private init() {
+        watcher.onDead = { [weak self] id in
+            self?.update(.bye, agentID: id)
+        }
+    }
 
     // MARK: - Mutations (must be called on main queue)
 
@@ -48,6 +55,7 @@ final class StatusManager: ObservableObject {
         agents.removeAll { $0.id == id }
         errorTimers[id]?.cancel()
         errorTimers.removeValue(forKey: id)
+        watcher.untrack(agentID: id)
     }
 
     // MARK: - Update
@@ -103,6 +111,15 @@ final class StatusManager: ObservableObject {
                     lastActivity: Date()
                 )
                 self.agents.append(newAgent)
+            }
+
+            // Shell-PID liveness tracking: untrack on bye (animation is running),
+            // otherwise (re)register the agent's shell PID so we can auto-fire bye
+            // if the terminal is closed without running `exit`.
+            if newStatus == .bye {
+                self.watcher.untrack(agentID: agentID)
+            } else if let pid = pid_t(agentID) {
+                self.watcher.track(agentID: agentID, pid: pid)
             }
 
             SoundManager.shared.play(for: newStatus)
