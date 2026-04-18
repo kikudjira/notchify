@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 extension Notification.Name {
     static let notchifyReposition = Notification.Name("notchifyReposition")
@@ -37,9 +38,30 @@ final class StatusManager: ObservableObject {
     /// Fires `bye` when a tracked shell PID disappears (terminal closed without `exit`).
     private let watcher = ProcessWatcher()
 
+    private static let claudeBundleID = "com.anthropic.claudefordesktop"
+
     private init() {
         watcher.onDead = { [weak self] id in
             self?.update(.bye, agentID: id)
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.bundleIdentifier == Self.claudeBundleID
+            else { return }
+            self?.byeAllUntrackedAgents()
+        }
+    }
+
+    private func byeAllUntrackedAgents() {
+        // Agents without a numeric agentID have no ProcessWatcher coverage
+        // (e.g. sessions started from Claude.app where NOTCHIFY_AGENT_ID isn't set)
+        let untracked = agents.filter { pid_t($0.id) == nil }
+        for agent in untracked {
+            update(.bye, agentID: agent.id)
         }
     }
 

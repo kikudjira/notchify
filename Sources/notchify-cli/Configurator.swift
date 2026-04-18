@@ -1,209 +1,306 @@
 import Foundation
+import Darwin
 
 struct Configurator {
     static func run() {
+        Terminal.enableRaw()
+        defer { Terminal.restore() }
         mainMenu()
     }
 
-    // MARK: - Main menu
+    // MARK: - Main Menu
 
     private static func mainMenu() {
-        // Check slow state once upfront, update only after user action
-        var startup = ShellWrapperConfig.isEnabled()
-        var login   = LoginItemConfig.isEnabled()
+        var sel = 0
+        let rowCount = 6  // 5 items + Quit
 
         while true {
-            ANSI.clearScreen()
-            ANSI.header("Notchify Config")
-            print("  1.  Hooks              \(ANSI.dim)(Claude Code triggers)\(ANSI.reset)")
-            print("  2.  Sounds             \(ANSI.dim)(per-state audio)\(ANSI.reset)")
-            print("  3.  Startup animation  \(startup ? ANSI.on() : ANSI.off())")
-            print("  4.  Login item         \(login   ? ANSI.on() : ANSI.off())")
-            print("  5.  Display            \(ANSI.dim)(screen & position)\(ANSI.reset)")
-            print()
-            print("  \(ANSI.dim)notchify launch  — start the app\(ANSI.reset)")
-            print("  \(ANSI.dim)q.  Quit\(ANSI.reset)")
-            print()
+            let startup = ShellWrapperConfig.isEnabled()
+            let login   = LoginItemConfig.isEnabled()
+            renderMain(sel: sel, startup: startup, login: login)
 
-            switch prompt() {
-            case "1": hooksMenu()
-            case "2": soundsMenu()
-            case "3":
-                toggleStartup()
-                startup = ShellWrapperConfig.isEnabled()
-            case "4":
-                toggleLoginItem()
-                login = LoginItemConfig.isEnabled()
-            case "5": displayMenu()
-            case "q", nil: return
-            default: break
-            }
-        }
-    }
-
-    // MARK: - Hooks menu
-
-    private static func hooksMenu() {
-        while true {
-            ANSI.clearScreen()
-            let state = HooksConfig.load()
-
-            ANSI.header("Hooks", subtitle: "~/.claude/settings.json")
-            print("  1.  working  \(ANSI.dim)(UserPromptSubmit + PostToolUse)\(ANSI.reset)  \(state.working ? ANSI.on() : ANSI.off())")
-            print("  2.  done     \(ANSI.dim)(Stop)\(ANSI.reset)                           \(state.done    ? ANSI.on() : ANSI.off())")
-            print("  3.  waiting  \(ANSI.dim)(Notification)\(ANSI.reset)                   \(state.waiting ? ANSI.on() : ANSI.off())")
-            print()
-            print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
-            print()
-
-            switch prompt() {
-            case "1": HooksConfig.setWorking(!state.working); flash(state.working ? "working hook disabled" : "working hook enabled")
-            case "2": HooksConfig.setDone(!state.done);       flash(state.done    ? "done hook disabled"    : "done hook enabled")
-            case "3": HooksConfig.setWaiting(!state.waiting); flash(state.waiting ? "waiting hook disabled" : "waiting hook enabled")
-            case "b", nil: return
-            default: break
-            }
-        }
-    }
-
-    // MARK: - Sounds menu
-
-    private static func soundsMenu() {
-        while true {
-            ANSI.clearScreen()
-            var config = SoundsConfig.load()
-
-            ANSI.header("Sounds", subtitle: "~/.config/notchify/sounds.json")
-            let volumePct = Int((config.volume * 100).rounded())
-            print("  Volume  \(ANSI.cyan)\(volumePct)%\(ANSI.reset)  \(ANSI.dim)v<N>  e.g. v50  v100\(ANSI.reset)")
-            print()
-            let states: [(String, SoundEntry)] = [
-                ("start",   config.start),
-                ("working", config.working),
-                ("waiting", config.waiting),
-                ("done",    config.done),
-                ("bye",     config.bye),
-                ("error",   config.error),
-                ("idle",    config.idle),
-            ]
-            for (i, (name, entry)) in states.enumerated() {
-                let label = name.padding(toLength: 8, withPad: " ", startingAt: 0)
-                let value = entry == .none
-                    ? "\(ANSI.dim)(none)\(ANSI.reset)"
-                    : "\(ANSI.green)\(entry.displayString)\(ANSI.reset)"
-                print("  \(i + 1).  \(label) \(value)")
-            }
-            print()
-            print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
-            print()
-
-            print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
-            fflush(stdout)
-            guard let input = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespaces),
-                  !input.isEmpty else { continue }
-            let lower = input.lowercased()
-
-            if lower == "b" { return }
-            // v<N> — set global volume
-            if lower.hasPrefix("v"), let n = Int(lower.dropFirst()), n >= 0, n <= 100 {
-                config.volume = Float(n) / 100.0
-                config.save()
-                flash("Volume: \(n)%")
-                continue
-            }
-            guard let idx = Int(lower), idx >= 1, idx <= 7 else { continue }
-
-            let (stateName, _) = states[idx - 1]
-            if let newEntry = pickSound(for: stateName) {
-                switch stateName {
-                case "start":   config.start   = newEntry
-                case "working": config.working = newEntry
-                case "waiting": config.waiting = newEntry
-                case "done":    config.done    = newEntry
-                case "bye":     config.bye     = newEntry
-                case "error":   config.error   = newEntry
-                case "idle":    config.idle    = newEntry
+            switch Terminal.readKey() {
+            case .up:               sel = (sel - 1 + rowCount) % rowCount
+            case .down:             sel = (sel + 1) % rowCount
+            case .space, .enter:
+                switch sel {
+                case 0: displayMenu()
+                case 1: soundsMenu()
+                case 2: hooksMenu()
+                case 3: toggleStartup(startup)
+                case 4: toggleLoginItem(login)
+                case 5: return
                 default: break
                 }
-                config.save()
+            case .char("q"), .char("\u{03}"): return
+            default: break
             }
         }
     }
 
-    private static func pickSound(for state: String) -> SoundEntry? {
+    private static func renderMain(sel: Int, startup: Bool, login: Bool) {
+        ANSI.clearScreen()
+        ANSI.header("Notchify Config")
+
+        func row(_ i: Int, _ label: String, _ detail: String, _ right: String) {
+            let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let lbl = i == sel ? "\(ANSI.bold)\(label)\(ANSI.reset)" : label
+            let det = detail.isEmpty ? "" : "  \(ANSI.dim)\(detail)\(ANSI.reset)"
+            print("  \(cur) \(lbl)\(det)  \(right)")
+        }
+
+        row(0, "Display",              "screen/position",  "›")
+        row(1, "Sounds",              "per-state audio",  "›")
+        print()
+        row(2, "Hooks",               "Claude Code triggers", "›")
+        row(3, "Intro/outro animation","shell wrapper",   startup ? ANSI.on() : ANSI.off())
+        print()
+        row(4, "Login item",          "",                 login ? ANSI.on() : ANSI.off())
+        print()
+        let qCur = 5 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let qLbl = 5 == sel ? "\(ANSI.bold)Quit\(ANSI.reset)" : "Quit"
+        print("  \(qCur) \(qLbl)")
+        print()
+        footer("↑↓ move   enter/space select   q/b quit/back")
+        print()
+        let d = ANSI.dim; let r = ANSI.reset
+        let col = 22
+        func cmd(_ c: String, _ desc: String) {
+            print("  \(d)\(c.padding(toLength: col, withPad: " ", startingAt: 0))\(desc)\(r)")
+        }
+        cmd("notchify launch",      "start the app")
+        cmd("notchify config",      "this menu")
+        cmd("notchify quit",        "quit the app")
+        cmd("notchify set working", "· waiting · done · error · start · bye · idle")
+        fflush(stdout)
+    }
+
+    // MARK: - Hooks Menu
+
+    private static func hooksMenu() {
+        var sel = 0
+        let rowCount = 4  // 3 toggles + Back
+
         while true {
-            ANSI.clearScreen()
-            let current = SoundsConfig.load()
-            let currentEntry: SoundEntry
-            switch state {
-            case "start":   currentEntry = current.start
-            case "working": currentEntry = current.working
-            case "waiting": currentEntry = current.waiting
-            case "done":    currentEntry = current.done
-            case "bye":     currentEntry = current.bye
-            case "error":   currentEntry = current.error
-            default:        currentEntry = current.idle
-            }
+            let state = HooksConfig.load()
+            renderHooks(sel: sel, state: state)
 
-            ANSI.header("Sound for: \(state)", subtitle: "current: \(currentEntry.displayString)")
-
-            let sounds = SoundsConfig.systemSounds
-            let cols = 4
-            print("  System sounds:")
-            for row in stride(from: 0, to: sounds.count, by: cols) {
-                let line = (row..<min(row + cols, sounds.count)).map { i in
-                    let num = String(i + 1).padding(toLength: 2, withPad: " ", startingAt: 0)
-                    return "  \(ANSI.cyan)\(num).\(ANSI.reset) \(sounds[i].padding(toLength: 10, withPad: " ", startingAt: 0))"
-                }.joined()
-                print(line)
-            }
-            print()
-            print("  \(ANSI.dim)f.  Custom file path\(ANSI.reset)")
-            print("  \(ANSI.dim)n.  None (disable sound)\(ANSI.reset)")
-            print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
-            print()
-
-            // Read full line to support two-digit numbers
-            print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
-            fflush(stdout)
-            guard let input = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespaces), !input.isEmpty else { return nil }
-
-            let lower = input.lowercased()
-            if lower == "b" { return nil }
-            if lower == "n" { return .some(.none) }
-            if lower == "f" {
-                let path = ANSI.readLine(prompt: "File path (~/...): ")
-                if !path.isEmpty { return .some(.file(path)) }
-                continue
-            }
-            if let num = Int(input), num >= 1, num <= sounds.count {
-                return .some(.system(sounds[num - 1]))
-            }
-            // Maybe the user typed a sound name directly
-            if let match = sounds.first(where: { $0.lowercased() == lower }) {
-                return .some(.system(match))
+            switch Terminal.readKey() {
+            case .up:              sel = (sel - 1 + rowCount) % rowCount
+            case .down:            sel = (sel + 1) % rowCount
+            case .space, .enter:
+                switch sel {
+                case 0: HooksConfig.setWorking(!state.working)
+                case 1: HooksConfig.setDone(!state.done)
+                case 2: HooksConfig.setWaiting(!state.waiting)
+                case 3: return
+                default: break
+                }
+            case .char("b"), .char("q"), .char("\u{03}"): return
+            default: break
             }
         }
     }
 
-    // MARK: - Toggle helpers
+    private static func renderHooks(sel: Int, state: HookState) {
+        ANSI.clearScreen()
+        ANSI.header("Hooks", subtitle: "~/.claude/settings.json")
 
-    private static func toggleStartup() {
-        let current = ShellWrapperConfig.isEnabled()
-        if current { ShellWrapperConfig.disable() } else { ShellWrapperConfig.enable() }
-        flash(current ? "Startup animation disabled (restart terminal to apply)" : "Startup animation enabled (restart terminal to apply)")
+        let rows: [(String, String, Bool)] = [
+            ("working", "UserPromptSubmit/PostToolUse", state.working),
+            ("done",    "Stop",                           state.done),
+            ("waiting", "Notification",                   state.waiting),
+        ]
+        for (i, (name, detail, on)) in rows.enumerated() {
+            let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let pad = name.padding(toLength: 8, withPad: " ", startingAt: 0)
+            let lbl = i == sel ? "\(ANSI.bold)\(pad)\(ANSI.reset)" : pad
+            print("  \(cur) \(lbl)  \(ANSI.dim)\(detail)\(ANSI.reset)  \(on ? ANSI.on() : ANSI.off())")
+        }
+        print()
+        let bCur = 3 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = 3 == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        print("  \(bCur) \(bLbl)")
+        print()
+        footer("↑↓ move   enter/space toggle   q/b quit/back")
     }
 
-    private static func toggleLoginItem() {
-        let current = LoginItemConfig.isEnabled()
+    // MARK: - Sounds Menu
+
+    private static let soundStates = ["start", "working", "waiting", "done", "bye", "error", "idle"]
+
+    private static func soundsMenu() {
+        var sel = 0
+        let rowCount = 1 + soundStates.count + 1  // volume + states + Back
+
+        while true {
+            var config = SoundsConfig.load()
+            renderSounds(sel: sel, config: config)
+            let key = Terminal.readKey()
+
+            switch key {
+            case .up:   sel = (sel - 1 + rowCount) % rowCount
+            case .down: sel = (sel + 1) % rowCount
+
+            case .left where sel == 0:
+                let v = max(0, Int((config.volume * 100).rounded()) - 5)
+                config.volume = Float(v) / 100.0
+                config.save()
+
+            case .right where sel == 0:
+                let v = min(100, Int((config.volume * 100).rounded()) + 5)
+                config.volume = Float(v) / 100.0
+                config.save()
+
+            case .space where sel > 0, .enter where sel > 0:
+                let backRow = 1 + soundStates.count
+                if sel == backRow { return }
+                let state = soundStates[sel - 1]
+                if let entry = pickSound(for: state, config: config) {
+                    setSoundEntry(entry, state: state, config: &config)
+                    config.save()
+                }
+
+            case .char("b"), .char("q"), .char("\u{03}"): return
+            default: break
+            }
+        }
+    }
+
+    private static func renderSounds(sel: Int, config: SoundsConfig) {
+        ANSI.clearScreen()
+        ANSI.header("Sounds", subtitle: "~/.config/notchify/sounds.json")
+
+        let volPct = Int((config.volume * 100).rounded())
+        let cur0 = sel == 0 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let lbl0 = sel == 0 ? "\(ANSI.bold)Volume  \(ANSI.reset)" : "Volume  "
+        let hint0 = sel == 0 ? "  \(ANSI.dim)← →\(ANSI.reset)" : ""
+        print("  \(cur0) \(lbl0)  \(ANSI.cyan)\(volPct)%\(ANSI.reset)\(hint0)")
+        print()
+
+        let entries: [SoundEntry] = [
+            config.start, config.working, config.waiting,
+            config.done, config.bye, config.error, config.idle
+        ]
+        for (i, (name, entry)) in zip(soundStates, entries).enumerated() {
+            let row = i + 1
+            let cur = row == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let pad = name.padding(toLength: 8, withPad: " ", startingAt: 0)
+            let lbl = row == sel ? "\(ANSI.bold)\(pad)\(ANSI.reset)" : pad
+            let val = entry == .none
+                ? "\(ANSI.dim)(none)\(ANSI.reset)"
+                : "\(ANSI.green)\(entry.displayString)\(ANSI.reset)"
+            print("  \(cur) \(lbl)  \(val)")
+        }
+        print()
+        let bRow = 1 + soundStates.count
+        let bCur = bRow == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = bRow == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        print("  \(bCur) \(bLbl)")
+        print()
+        footer("↑↓ move   ←→ volume   enter/space pick   q/b quit/back")
+    }
+
+    private static func setSoundEntry(_ entry: SoundEntry, state: String, config: inout SoundsConfig) {
+        switch state {
+        case "start":   config.start   = entry
+        case "working": config.working = entry
+        case "waiting": config.waiting = entry
+        case "done":    config.done    = entry
+        case "bye":     config.bye     = entry
+        case "error":   config.error   = entry
+        case "idle":    config.idle    = entry
+        default: break
+        }
+    }
+
+    private static func currentSoundEntry(_ state: String, config: SoundsConfig) -> SoundEntry {
+        switch state {
+        case "start":   return config.start
+        case "working": return config.working
+        case "waiting": return config.waiting
+        case "done":    return config.done
+        case "bye":     return config.bye
+        case "error":   return config.error
+        default:        return config.idle
+        }
+    }
+
+    // MARK: - Sound Picker
+
+    private static func pickSound(for state: String, config: SoundsConfig) -> SoundEntry? {
+        let sounds = SoundsConfig.systemSounds
+        let current = currentSoundEntry(state, config: config)
+        var sel: Int
+        if current == .none {
+            sel = 0
+        } else if case .system(let name) = current, let i = sounds.firstIndex(of: name) {
+            sel = i + 1
+        } else {
+            sel = sounds.count + 1
+        }
+        let rowCount = 1 + sounds.count + 2  // none + system sounds + custom + Back
+
+        while true {
+            renderPickSound(sel: sel, state: state, current: current, sounds: sounds)
+
+            switch Terminal.readKey() {
+            case .up:   sel = (sel - 1 + rowCount) % rowCount
+            case .down: sel = (sel + 1) % rowCount
+            case .space, .enter:
+                if sel == 0 { return SoundEntry.none }
+                if sel <= sounds.count { return .system(sounds[sel - 1]) }
+                if sel == sounds.count + 2 { return nil }
+                // Custom file — leave raw mode for text input
+                Terminal.restore()
+                ANSI.clearScreen()
+                print()
+                print("  \(ANSI.dim)File path (~/...): \(ANSI.reset)", terminator: "")
+                fflush(stdout)
+                let path = readLine(strippingNewline: true) ?? ""
+                Terminal.enableRaw()
+                if !path.isEmpty { return .file(path) }
+            case .char("b"), .char("q"), .char("\u{03}"): return nil
+            default: break
+            }
+        }
+    }
+
+    private static func renderPickSound(sel: Int, state: String, current: SoundEntry, sounds: [String]) {
+        ANSI.clearScreen()
+        ANSI.header("Sound · \(state)", subtitle: "current: \(current.displayString)")
+
+        func row(_ i: Int, _ label: String) {
+            let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let lbl = i == sel ? "\(ANSI.bold)\(label)\(ANSI.reset)" : label
+            print("  \(cur) \(lbl)")
+        }
+
+        row(0, "(none)")
+        for (i, name) in sounds.enumerated() { row(i + 1, name) }
+        row(sounds.count + 1, "Custom file...")
+
+        print()
+        let bCur = sel == sounds.count + 2 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = sel == sounds.count + 2 ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        print("  \(bCur) \(bLbl)")
+        print()
+        footer("↑↓ move   enter/space select   q/b quit/back")
+    }
+
+    // MARK: - Toggle Helpers
+
+    private static func toggleStartup(_ current: Bool) {
+        if current { ShellWrapperConfig.disable() } else { ShellWrapperConfig.enable() }
+    }
+
+    private static func toggleLoginItem(_ current: Bool) {
         if current {
             LoginItemConfig.disable()
-            flash("Login item removed")
         } else {
             let ok = LoginItemConfig.enable()
-            if ok {
-                flash("Login item added — will start at next login")
-            } else {
+            if !ok {
+                ANSI.clearScreen()
                 print()
                 print("  \(ANSI.yellow)⚠\(ANSI.reset)  Could not write ~/Library/LaunchAgents/")
                 Thread.sleep(forTimeInterval: 2.0)
@@ -211,93 +308,121 @@ struct Configurator {
         }
     }
 
-    // MARK: - Display menu
+    // MARK: - Display Menu
 
     private static func displayMenu() {
+        var sel = 0
+
         while true {
-            ANSI.clearScreen()
             var settings = DisplayConfig.load()
             let screens  = DisplayConfig.screenList()
+            let n = screens.count
+            let rowCount = n + 1 + 4 + 1  // screens + auto + h + v + dir + reset + Back
 
-            ANSI.header("Display", subtitle: "~/.config/notchify/display.json")
+            renderDisplay(sel: sel, settings: settings, screens: screens)
+            let key = Terminal.readKey()
 
-            print("  Screens:")
-            for s in screens {
-                let notch  = s.hasNotch ? " \(ANSI.dim)[notch]\(ANSI.reset)" : ""
-                let active = s.isCurrent ? " \(ANSI.green)←\(ANSI.reset)" : ""
-                print("  \(s.index + 1).  \(s.name)\(notch)\(active)")
-            }
-            let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)←\(ANSI.reset)" : ""
-            print("  a.  Auto (notch screen)\(autoMark)")
-            print()
-            print("  Horizontal  \(ANSI.cyan)\(settings.horizontalOffset) pt\(ANSI.reset)  \(ANSI.dim)h<N>  e.g. h-20  h40\(ANSI.reset)")
-            print("  Vertical    \(ANSI.cyan)\(settings.verticalOffset) pt\(ANSI.reset)  \(ANSI.dim)v<N>  e.g. v8   v-4\(ANSI.reset)")
-            let arrow = settings.mascotDirection == .right ? "→" : "←"
-            print("  Direction   \(ANSI.cyan)\(settings.mascotDirection.rawValue) of notch \(arrow)\(ANSI.reset)  \(ANSI.dim)d    toggle (new mascots side)\(ANSI.reset)")
-            print("  0   Reset both offsets")
-            print()
-            print("  \(ANSI.dim)b.  Back\(ANSI.reset)")
-            print()
+            switch key {
+            case .up:   sel = (sel - 1 + rowCount) % rowCount
+            case .down: sel = (sel + 1) % rowCount
 
-            print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
-            fflush(stdout)
-            guard let input = readLine(strippingNewline: true)?.trimmingCharacters(in: .whitespaces),
-                  !input.isEmpty else { continue }
-            let lower = input.lowercased()
+            case .left:
+                if sel == n + 1 {
+                    settings.horizontalOffset -= 1
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 2 {
+                    settings.verticalOffset -= 1
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                }
 
-            if lower == "b" { return }
-            if lower == "a" {
-                settings.screenIndex = -1
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Screen: auto")
-                continue
-            }
-            if lower == "0" {
-                settings.horizontalOffset = 0
-                settings.verticalOffset   = 0
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Offsets reset")
-                continue
-            }
-            if lower == "d" {
-                settings.mascotDirection = settings.mascotDirection == .right ? .left : .right
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Direction: \(settings.mascotDirection.rawValue) of notch")
-                continue
-            }
-            // screen selection: single number within screen list range
-            if let n = Int(lower), n >= 1, n <= screens.count {
-                settings.screenIndex = n - 1
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Screen: \(screens[n - 1].name)"); continue
-            }
-            // h<N>  — set exact horizontal offset (e.g. h-20, h40)
-            if lower.hasPrefix("h"), let n = Int(lower.dropFirst()) {
-                settings.horizontalOffset = n
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Horizontal: \(n) pt"); continue
-            }
-            // v<N>  — set exact vertical offset (e.g. v8, v-4)
-            if lower.hasPrefix("v"), let n = Int(lower.dropFirst()) {
-                settings.verticalOffset = n
-                DisplayConfig.save(settings); sendToSocket("reposition")
-                flash("Vertical: \(n) pt"); continue
+            case .right:
+                if sel == n + 1 {
+                    settings.horizontalOffset += 1
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 2 {
+                    settings.verticalOffset += 1
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                }
+
+            case .space, .enter:
+                if sel < n {
+                    settings.screenIndex = sel
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n {
+                    settings.screenIndex = -1
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 3 {
+                    settings.mascotDirection = settings.mascotDirection == .right ? .left : .right
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 4 {
+                    settings.horizontalOffset = 0
+                    settings.verticalOffset   = 0
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 5 {
+                    return
+                }
+
+            case .char("b"), .char("q"), .char("\u{03}"): return
+            default: break
             }
         }
     }
 
-    // MARK: - Utilities
+    private static func renderDisplay(
+        sel: Int,
+        settings: DisplaySettings,
+        screens: [(index: Int, name: String, hasNotch: Bool, isCurrent: Bool)]
+    ) {
+        ANSI.clearScreen()
+        ANSI.header("Display", subtitle: "~/.config/notchify/display.json")
 
-    private static func prompt() -> Character? {
-        print("\(ANSI.cyan)›\(ANSI.reset) ", terminator: "")
-        fflush(stdout)
-        guard let line = readLine(strippingNewline: true), !line.isEmpty else { return nil }
-        return line.lowercased().first
+        let n = screens.count
+
+        print("  \(ANSI.dim)Screen\(ANSI.reset)")
+        for (i, s) in screens.enumerated() {
+            let cur   = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let lbl   = i == sel ? "\(ANSI.bold)\(s.name)\(ANSI.reset)" : s.name
+            let notch = s.hasNotch ? " \(ANSI.dim)[notch]\(ANSI.reset)" : ""
+            let mark  = settings.screenIndex == i ? " \(ANSI.green)✓\(ANSI.reset)" : ""
+            print("  \(cur) \(lbl)\(notch)\(mark)")
+        }
+        let autoCur  = sel == n ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let autoLbl  = sel == n ? "\(ANSI.bold)Auto – notch screen\(ANSI.reset)" : "Auto – notch screen"
+        let autoMark = settings.screenIndex == -1 ? " \(ANSI.green)✓\(ANSI.reset)" : ""
+        print("  \(autoCur) \(autoLbl)\(autoMark)")
+        print()
+
+        func valueRow(_ i: Int, _ label: String, _ value: String, _ hint: String) {
+            let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let pad = label.padding(toLength: 12, withPad: " ", startingAt: 0)
+            let lbl = i == sel ? "\(ANSI.bold)\(pad)\(ANSI.reset)" : pad
+            let h   = i == sel ? "  \(ANSI.dim)\(hint)\(ANSI.reset)" : ""
+            print("  \(cur) \(lbl)  \(ANSI.cyan)\(value)\(ANSI.reset)\(h)")
+        }
+
+        let arrow = settings.mascotDirection == .right ? "right →" : "← left"
+        valueRow(n + 1, "Horizontal", "\(settings.horizontalOffset) pt",  "← →")
+        valueRow(n + 2, "Vertical",   "\(settings.verticalOffset) pt",    "← →")
+        valueRow(n + 3, "Direction",  arrow,                              "space toggle")
+
+        let rCur = sel == n + 4 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let rLbl = sel == n + 4 ? "\(ANSI.bold)Reset offsets\(ANSI.reset)" : "Reset offsets"
+        print("  \(rCur) \(rLbl)  \(ANSI.dim)(h=0 v=0)\(ANSI.reset)")
+
+        print()
+        let bCur = sel == n + 5 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = sel == n + 5 ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        print("  \(bCur) \(bLbl)")
+        print()
+        footer("↑↓ move   ←→ adjust   enter/space select   q/b quit/back")
     }
 
-    private static func flash(_ message: String) {
-        print()
-        print("  \(ANSI.green)✓\(ANSI.reset) \(message)")
-        Thread.sleep(forTimeInterval: 0.8)
+    // MARK: - Shared
+
+    private static func footer(_ help: String) {
+        let bar = String(repeating: "─", count: 46)
+        print("\(ANSI.cyan)\(bar)\(ANSI.reset)")
+        print("  \(ANSI.dim)\(help)\(ANSI.reset)")
+        fflush(stdout)
     }
 }
