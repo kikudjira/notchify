@@ -1,5 +1,9 @@
 # Notchify
 
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Platform](https://img.shields.io/badge/platform-macOS%2012%2B-lightgrey)
+![Homebrew](https://img.shields.io/badge/homebrew-kikudjira%2Fnotchify-orange)
+
 A pixel mascot for [Claude Code](https://claude.ai/code) that lives in your MacBook's notch and reacts to what Claude is doing.
 
 **Requires:** macOS 12+, MacBook with a notch (Pro/Air 2021+), Claude Code CLI.
@@ -16,7 +20,7 @@ brew install notchify
 notchify launch      # starts the app and enables all hooks automatically
 ```
 
-That's it. Hooks are enabled on first launch. To adjust sounds, display position, or startup animation:
+That's it. Hooks are enabled on first launch. To adjust sounds, display position, or intro/outro animation:
 
 ```sh
 notchify config
@@ -75,7 +79,7 @@ Custom file example: `{ "file": "~/sounds/done.mp3" }`. Set to `null` to disable
 
 Top-level `volume` (0.0–1.0) applies to every sound and is scaled further by the macOS system output level. Example: `{ "volume": 0.4, "start": { "system": "Hero" }, ... }`. Missing or `1.0` means full volume.
 
-### Startup animation
+### Intro/outro animation
 
 Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
 
@@ -85,26 +89,46 @@ Registers Notchify as a launchd agent (`~/Library/LaunchAgents/com.notchify.app.
 
 ### Display
 
-Control which screen the mascot appears on and where it sits:
+Arrow-key TUI to position the mascot. Settings persist in `~/.config/notchify/display.json` and apply live — no restart.
 
+| Field        | Keys              | What it does                                                |
+|--------------|-------------------|-------------------------------------------------------------|
+| Screen       | `↑↓` `enter`      | Pick a specific display, or `Auto` (always the notch screen). `✓` marks the active one. |
+| Horizontal   | `←` / `→`         | Shift the mascot horizontally in points (negative = left).  |
+| Vertical     | `←` / `→`         | Shift vertically (negative = up into the notch).            |
+| Direction    | `space`           | Flip the mascot to face `→ right` or `← left`.              |
+| Reset offsets| `enter`           | Set horizontal and vertical back to `0 pt`.                 |
+
+`q` / `b` exit the menu.
+
+---
+
+## Uninstall
+
+Homebrew:
+
+```sh
+notchify quit
+brew uninstall notchify
+brew untap kikudjira/notchify
 ```
-  Screens:
-  1.  3840×2160  [notch] ←
-  2.  2560×1440
-  a.  Auto (notch screen)
 
-  Horizontal  0 pt   h<N>  e.g. h-20  h40
-  Vertical    0 pt   v<N>  e.g. v8   v-4
-  0   Reset both offsets
-```
+Optional cleanup of leftovers:
 
-- `1` / `2` — select screen by number
-- `a` — auto (always picks the notch screen)
-- `h<N>` — set horizontal offset, e.g. `h-20` or `h40`
-- `v<N>` — set vertical offset, e.g. `v8` or `v-4`
-- `0` — reset both offsets to zero
+- `~/Library/LaunchAgents/com.notchify.app.plist` — login item
+- `claude()` function in `~/.zshrc` / `~/.bashrc` — intro/outro wrapper
+- `~/.config/notchify/` — sounds and display settings
+- Hooks in `~/.claude/settings.json` — entries that call `notchify set ...`
 
-Changes apply live — no restart needed.
+---
+
+## Troubleshooting
+
+- **Mascot doesn't appear** — confirm your MacBook actually has a notch (Pro/Air 2021+). Try `notchify launch` again, then `notchify set working` to force a frame.
+- **Hooks don't fire** — open `notchify config → Hooks` and toggle them on. Make sure `~/.claude/settings.json` is valid JSON.
+- **Mascot on the wrong screen** — `notchify config → Display`, pick a specific screen or `Auto`.
+- **Intro/outro doesn't play** — open a new terminal or run `source ~/.zshrc` after enabling.
+- **Stuck animation** — `notchify clear` resets all states without quitting the app.
 
 ---
 
@@ -149,11 +173,16 @@ Sources/
     CrabRenderer.swift   pixel animation renderer
     StatusServer.swift   Unix socket IPC server (/tmp/notchify.sock)
     NotchWindowController.swift  notch-area window positioning
-  notchify-cli/          CLI binary
-    main.swift           command dispatcher
-    Configurator.swift   interactive config TUI
-    HooksConfig.swift    read/write Claude Code hooks
-    DisplayConfig.swift  screen and offset settings
+  notchify-cli/                CLI binary
+    main.swift                 command dispatcher
+    Configurator.swift         interactive config TUI
+    HooksConfig.swift          read/write Claude Code hooks
+    DisplayConfig.swift        screen, offsets, mascot direction
+    SoundsConfig.swift         per-state sound assignments
+    LoginItemConfig.swift      launchd agent registration
+    ShellWrapperConfig.swift   intro/outro shell wrapper
+    Terminal.swift             raw-mode key input
+    ANSI.swift                 ANSI colors / cursor helpers
 scripts/
   build.sh               compile + create Notchify.app bundle
   setup.sh               install CLI, hooks, login item (from-source installs)
