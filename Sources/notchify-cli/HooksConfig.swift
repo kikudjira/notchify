@@ -26,6 +26,10 @@ enum HooksConfig {
     // needed to resume working animation when user approves a tool.
     private static let workingEvents = ["UserPromptSubmit", "PostToolUse"]
 
+    // Events that carry the "waiting" hooks.
+    // PermissionRequest fires when Claude Code shows a tool approval dialog.
+    private static let waitingEvents = ["Notification", "PermissionRequest"]
+
     static func load() -> HookState {
         guard let json = loadJSON() else { return HookState(working: false, done: false, waiting: false) }
         let hooks = json["hooks"] as? [String: Any] ?? [:]
@@ -33,10 +37,13 @@ enum HooksConfig {
         let workingOn = workingEvents.allSatisfy { event in
             commandPresent(workingCommands[0], in: hooks, event: event)
         }
+        let waitingOn = waitingEvents.allSatisfy { event in
+            commandPresent(waitingCommands[0], in: hooks, event: event)
+        }
         return HookState(
             working: workingOn,
-            done:    commandPresent(doneCommands[0],    in: hooks, event: "Stop"),
-            waiting: commandPresent(waitingCommands[0], in: hooks, event: "Notification")
+            done:    commandPresent(doneCommands[0], in: hooks, event: "Stop"),
+            waiting: waitingOn
         )
     }
 
@@ -69,10 +76,12 @@ enum HooksConfig {
     static func setWaiting(_ enabled: Bool) {
         var json = loadJSON() ?? [:]
         var hooks = json["hooks"] as? [String: Any] ?? [:]
-        if enabled {
-            addHook(command: waitingCommands[0], event: "Notification", hooks: &hooks)
-        } else {
-            removeHook(command: waitingCommands[0], event: "Notification", hooks: &hooks)
+        for event in waitingEvents {
+            if enabled {
+                addHook(command: waitingCommands[0], event: event, hooks: &hooks)
+            } else {
+                removeHook(command: waitingCommands[0], event: event, hooks: &hooks)
+            }
         }
         json["hooks"] = hooks
         saveJSON(json)
@@ -88,7 +97,7 @@ enum HooksConfig {
         let migrations: [(old: String, new: String, events: [String])] = [
             (oldWorkingCommand, workingCommands[0], workingEvents),
             (oldDoneCommand,    doneCommands[0],    ["Stop"]),
-            (oldWaitingCommand, waitingCommands[0], ["Notification"]),
+            (oldWaitingCommand, waitingCommands[0], waitingEvents),
         ]
 
         for m in migrations {
@@ -100,6 +109,13 @@ enum HooksConfig {
                     changed = true
                 }
             }
+        }
+
+        // Add PermissionRequest if Notification waiting hook exists but PermissionRequest doesn't
+        if commandPresent(waitingCommands[0], in: hooks, event: "Notification")
+            && !commandPresent(waitingCommands[0], in: hooks, event: "PermissionRequest") {
+            addHook(command: waitingCommands[0], event: "PermissionRequest", hooks: &hooks)
+            changed = true
         }
 
         if changed {

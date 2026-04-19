@@ -97,7 +97,8 @@ if install_working == "true":
 if install_done == "true":
     ensure_hook("Stop",             "notchify set done")
 if install_waiting == "true":
-    ensure_hook("Notification",     "notchify set waiting")
+    ensure_hook("Notification",      "notchify set waiting")
+    ensure_hook("PermissionRequest", "notchify set waiting")
 
 with open(path, "w") as f:
     json.dump(settings, f, indent=2)
