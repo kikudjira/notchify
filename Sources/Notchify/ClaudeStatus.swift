@@ -134,6 +134,9 @@ final class StatusManager: ObservableObject {
 
             } else {
                 // ── New agent ───────────────────────────────────────────────
+                // Only working/start/error can open a new slot; mid/end-of-turn
+                // statuses for an unknown agent ID are silently dropped.
+                guard newStatus == .working || newStatus == .start || newStatus == .error else { return }
                 guard self.agents.count < Self.maxAgents else { return }
 
                 let newAgent = AgentState(
