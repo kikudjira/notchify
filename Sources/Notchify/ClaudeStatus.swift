@@ -72,6 +72,17 @@ final class StatusManager: ObservableObject {
         agents[idx].startAnimationDone = true
     }
 
+    /// Instantly removes all agents — for stuck-animation recovery.
+    func clearAll() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            for (_, timer) in self.errorTimers { timer.cancel() }
+            self.errorTimers.removeAll()
+            for agent in self.agents { self.watcher.untrack(agentID: agent.id) }
+            self.agents.removeAll()
+        }
+    }
+
     /// Called by ByeAnimationView when the farewell animation completes.
     func removeAgent(id: String) {
         agents.removeAll { $0.id == id }

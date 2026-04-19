@@ -71,6 +71,7 @@ struct Configurator {
         cmd("notchify launch",      "start the app")
         cmd("notchify config",      "this menu")
         cmd("notchify quit",        "quit the app")
+        cmd("notchify clear",       "clear stuck animations")
         cmd("notchify set working", "· waiting · done · error · start · bye · idle")
         fflush(stdout)
     }

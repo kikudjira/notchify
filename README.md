@@ -55,11 +55,11 @@ Run `notchify config` to open the interactive menu.
 
 Enable or disable Claude Code triggers that drive the animations:
 
-| Hook    | Claude Code event                  | Animation  |
-|---------|------------------------------------|------------|
-| working | `UserPromptSubmit`, `PostToolUse`  | working    |
-| done    | `Stop`                             | done       |
-| waiting | `Notification`                     | waiting    |
+| Hook    | Claude Code event                         | Animation  |
+|---------|-------------------------------------------|------------|
+| working | `UserPromptSubmit`, `PostToolUse`         | working    |
+| done    | `Stop`                                    | done       |
+| waiting | `Notification`, `PermissionRequest`       | waiting    |
 
 Hooks are written to `~/.claude/settings.json` and enabled automatically on first `notchify launch`.
 
@@ -113,6 +113,7 @@ Changes apply live — no restart needed.
 ```sh
 notchify launch        # launch the app (enables hooks on first run)
 notchify quit          # quit the running app
+notchify clear         # clear all stuck animations (keeps the app running)
 notchify config        # interactive config (hooks, sounds, display, login item)
 notchify set <state>   # send a state manually (working / waiting / done / error / start / bye / idle)
 notchify help          # show help

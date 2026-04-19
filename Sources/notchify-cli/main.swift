@@ -11,6 +11,7 @@ if command == "help" || command == "--help" || command == "-h" || command.isEmpt
 
     USAGE
       notchify set <status>   Send a status to the running app
+      notchify clear          Clear all stuck animations (keeps the app running)
       notchify launch         Launch the app
       notchify quit           Quit the running app
       notchify config         Interactive configurator (hooks, sounds, startup)
@@ -44,6 +45,12 @@ if command == "config" {
 // ---- quit ----
 if command == "quit" {
     sendToSocket("quit")
+    exit(0)
+}
+
+// ---- clear ----
+if command == "clear" {
+    sendToSocket("clear")
     exit(0)
 }
 

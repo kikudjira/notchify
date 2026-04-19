@@ -89,6 +89,8 @@ final class StatusServer {
                 DispatchQueue.main.async {
                     NSApplication.shared.terminate(nil)
                 }
+            } else if commandStr == "clear" {
+                StatusManager.shared.clearAll()
             } else if commandStr == "reposition" {
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
