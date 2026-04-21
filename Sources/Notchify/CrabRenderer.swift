@@ -81,7 +81,7 @@ private struct StartAnimationView: View {
             }
         }
         .onReceive(
-            Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
+            Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()
         ) { _ in
             if frame < frameNames.count - 1 {
                 frame += 1
@@ -132,7 +132,7 @@ private struct ByeAnimationView: View {
             }
         }
         .onReceive(
-            Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
+            Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()
         ) { _ in
             guard !done, !frameNames.isEmpty else { return }
             if frame < frameNames.count - 1 {
@@ -163,7 +163,7 @@ private struct DoneAnimationView: View {
             }
         }
         .onReceive(
-            Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
+            Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()
         ) { _ in
             // Advance only while not on the last frame
             if frame < frameNames.count - 1 {
@@ -193,7 +193,7 @@ private struct WaitingAnimationView: View {
             }
         }
         .onReceive(
-            Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
+            Timer.publish(every: 0.20, on: .main, in: .common).autoconnect()
         ) { _ in
             if frame < totalFrames - 1 {
                 frame += 1
