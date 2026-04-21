@@ -37,6 +37,30 @@ cd notchify
 
 ---
 
+## Update
+
+Homebrew:
+
+```sh
+notchify quit
+brew update
+brew upgrade notchify
+notchify launch
+```
+
+From source:
+
+```sh
+cd notchify
+git pull
+./scripts/build.sh
+./scripts/setup.sh
+```
+
+Check installed version: `brew list --versions notchify`.
+
+---
+
 ## What it shows
 
 | State     | When                                   | Animation |
