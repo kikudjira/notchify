@@ -311,6 +311,10 @@ struct Configurator {
 
     // MARK: - Display Menu
 
+    private enum ProfileKey { case notch, external }
+
+    /// Row indices inside displayMenu, computed from screen count `n`.
+    /// Layout: screens[0..n) → auto(n) → notch h/v/dir/reset(n+1..n+4) → external h/v/dir/reset(n+5..n+8) → back(n+9)
     private static func displayMenu() {
         var sel = 0
 
@@ -318,7 +322,7 @@ struct Configurator {
             var settings = DisplayConfig.load()
             let screens  = DisplayConfig.screenList()
             let n = screens.count
-            let rowCount = n + 1 + 4 + 1  // screens + auto + h + v + dir + reset + Back
+            let rowCount = n + 10
 
             renderDisplay(sel: sel, settings: settings, screens: screens)
             let key = Terminal.readKey()
@@ -328,22 +332,10 @@ struct Configurator {
             case .down: sel = (sel + 1) % rowCount
 
             case .left:
-                if sel == n + 1 {
-                    settings.horizontalOffset -= 1
-                    DisplayConfig.save(settings); sendToSocket("reposition")
-                } else if sel == n + 2 {
-                    settings.verticalOffset -= 1
-                    DisplayConfig.save(settings); sendToSocket("reposition")
-                }
+                handleArrow(sel: sel, n: n, delta: -1, settings: &settings)
 
             case .right:
-                if sel == n + 1 {
-                    settings.horizontalOffset += 1
-                    DisplayConfig.save(settings); sendToSocket("reposition")
-                } else if sel == n + 2 {
-                    settings.verticalOffset += 1
-                    DisplayConfig.save(settings); sendToSocket("reposition")
-                }
+                handleArrow(sel: sel, n: n, delta: +1, settings: &settings)
 
             case .space, .enter:
                 if sel < n {
@@ -353,19 +345,65 @@ struct Configurator {
                     settings.screenIndex = -1
                     DisplayConfig.save(settings); sendToSocket("reposition")
                 } else if sel == n + 3 {
-                    settings.mascotDirection = settings.mascotDirection == .right ? .left : .right
+                    settings.notch.mascotDirection = nextDirection(settings.notch.mascotDirection, profile: .notch)
+                    coerceNotch(&settings)
                     DisplayConfig.save(settings); sendToSocket("reposition")
                 } else if sel == n + 4 {
-                    settings.horizontalOffset = 0
-                    settings.verticalOffset   = 0
+                    settings.notch.horizontalOffset = 0
+                    settings.notch.verticalOffset   = 0
                     DisplayConfig.save(settings); sendToSocket("reposition")
-                } else if sel == n + 5 {
+                } else if sel == n + 7 {
+                    settings.external.mascotDirection = nextDirection(settings.external.mascotDirection, profile: .external)
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 8 {
+                    settings.external.horizontalOffset = 0
+                    settings.external.verticalOffset   = 0
+                    DisplayConfig.save(settings); sendToSocket("reposition")
+                } else if sel == n + 9 {
                     return
                 }
 
             case .char("b"), .char("q"), .char("\u{03}"): return
             default: break
             }
+        }
+    }
+
+    private static func handleArrow(sel: Int, n: Int, delta: Int, settings: inout DisplaySettings) {
+        switch sel {
+        case n + 1: settings.notch.horizontalOffset    += delta
+        case n + 2: settings.notch.verticalOffset      += delta
+        case n + 5: settings.external.horizontalOffset += delta
+        case n + 6: settings.external.verticalOffset   += delta
+        default: return
+        }
+        DisplayConfig.save(settings); sendToSocket("reposition")
+    }
+
+    private static func coerceNotch(_ settings: inout DisplaySettings) {
+        if settings.notch.mascotDirection == .center {
+            settings.notch.mascotDirection = .right
+        }
+    }
+
+    private static func nextDirection(_ current: MascotDirection, profile: ProfileKey) -> MascotDirection {
+        switch profile {
+        case .notch:
+            return current == .right ? .left : .right
+        case .external:
+            switch current {
+            case .right:  return .left
+            case .left:   return .center
+            case .center: return .right
+            }
+        }
+    }
+
+    private static func directionLabel(_ d: MascotDirection) -> String {
+        switch d {
+        case .right:  return "right →"
+        case .left:   return "← left"
+        case .center: return "• center"
         }
     }
 
@@ -393,6 +431,41 @@ struct Configurator {
         print("  \(autoCur) \(autoLbl)\(autoMark)")
         print()
 
+        renderProfile(
+            title: "Notch profile",
+            subtitle: "applied on screen with notch",
+            profile: settings.notch,
+            sel: sel,
+            baseRow: n + 1,
+            allowCenter: false
+        )
+
+        renderProfile(
+            title: "External profile",
+            subtitle: "applied on screen without notch",
+            profile: settings.external,
+            sel: sel,
+            baseRow: n + 5,
+            allowCenter: true
+        )
+
+        let bCur = sel == n + 9 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = sel == n + 9 ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        print("  \(bCur) \(bLbl)")
+        print()
+        footer("↑↓ move   ←→ adjust   enter/space select   q/b quit/back")
+    }
+
+    private static func renderProfile(
+        title: String,
+        subtitle: String,
+        profile: ProfileSettings,
+        sel: Int,
+        baseRow: Int,
+        allowCenter: Bool
+    ) {
+        print("  \(ANSI.dim)\(title)  ·  \(subtitle)\(ANSI.reset)")
+
         func valueRow(_ i: Int, _ label: String, _ value: String, _ hint: String) {
             let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
             let pad = label.padding(toLength: 12, withPad: " ", startingAt: 0)
@@ -401,21 +474,15 @@ struct Configurator {
             print("  \(cur) \(lbl)  \(ANSI.cyan)\(value)\(ANSI.reset)\(h)")
         }
 
-        let arrow = settings.mascotDirection == .right ? "right →" : "← left"
-        valueRow(n + 1, "Horizontal", "\(settings.horizontalOffset) pt",  "← →")
-        valueRow(n + 2, "Vertical",   "\(settings.verticalOffset) pt",    "← →")
-        valueRow(n + 3, "Direction",  arrow,                              "space toggle")
+        let dirHint = allowCenter ? "space cycles right→left→center" : "space toggles right↔left"
+        valueRow(baseRow,     "Horizontal", "\(profile.horizontalOffset) pt",        "← →")
+        valueRow(baseRow + 1, "Vertical",   "\(profile.verticalOffset) pt",          "← →")
+        valueRow(baseRow + 2, "Direction",  directionLabel(profile.mascotDirection), dirHint)
 
-        let rCur = sel == n + 4 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let rLbl = sel == n + 4 ? "\(ANSI.bold)Reset offsets\(ANSI.reset)" : "Reset offsets"
+        let rCur = sel == baseRow + 3 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let rLbl = sel == baseRow + 3 ? "\(ANSI.bold)Reset offsets\(ANSI.reset)" : "Reset offsets"
         print("  \(rCur) \(rLbl)  \(ANSI.dim)(h=0 v=0)\(ANSI.reset)")
-
         print()
-        let bCur = sel == n + 5 ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let bLbl = sel == n + 5 ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
-        print("  \(bCur) \(bLbl)")
-        print()
-        footer("↑↓ move   ←→ adjust   enter/space select   q/b quit/back")
     }
 
     // MARK: - Shared

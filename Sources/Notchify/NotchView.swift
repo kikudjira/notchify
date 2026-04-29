@@ -60,6 +60,14 @@ struct NotchView: View {
     @EnvironmentObject var statusManager: StatusManager
     let direction: MascotDirection
 
+    private var stackAlignment: Alignment {
+        switch direction {
+        case .right:  return .leading
+        case .left:   return .trailing
+        case .center: return .center
+        }
+    }
+
     var body: some View {
         HStack(spacing: -20) {
             ForEach(statusManager.agents) { agent in
@@ -70,8 +78,7 @@ struct NotchView: View {
                     ))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity,
-               alignment: direction == .right ? .leading : .trailing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: stackAlignment)
         .animation(.spring(response: 0.35, dampingFraction: 0.75),
                    value: statusManager.agents.map(\.id))
     }
