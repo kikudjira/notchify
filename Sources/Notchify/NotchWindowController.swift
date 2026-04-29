@@ -31,7 +31,8 @@ final class NotchWindowController: NSObject {
     private func setupPanel() {
         guard let screen = targetScreen() else { return }
         let settings = DisplayConfig.load()
-        let frame = windowFrame(screen: screen, settings: settings)
+        let profile  = profile(for: screen, settings: settings)
+        let frame    = windowFrame(screen: screen, profile: profile)
 
         let panel = NSPanel(
             contentRect: frame,
@@ -47,7 +48,7 @@ final class NotchWindowController: NSObject {
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
-        let rootView = NotchView(direction: settings.mascotDirection)
+        let rootView = NotchView(direction: profile.mascotDirection)
             .environmentObject(StatusManager.shared)
         let hostView = NSHostingView(rootView: rootView)
         // Prevent NSHostingView from flashing white before SwiftUI paints
@@ -93,22 +94,28 @@ final class NotchWindowController: NSObject {
         return screens.first(where: { $0.auxiliaryTopRightArea != nil }) ?? NSScreen.main
     }
 
+    // MARK: - Profile selection
+
+    private func profile(for screen: NSScreen, settings: DisplaySettings) -> ProfileSettings {
+        screen.auxiliaryTopRightArea != nil ? settings.notch : settings.external
+    }
+
     // MARK: - Frame
 
-    private func windowFrame(screen: NSScreen, settings: DisplaySettings) -> CGRect {
+    private func windowFrame(screen: NSScreen, profile: ProfileSettings) -> CGRect {
         let sf       = screen.frame
         let menuBarH = menuBarHeight(screen: screen)
         let windowH  = max(menuBarH, mascotHeight)
         let windowW  = maxPanelWidth   // always max — transparent area causes no flash
-        let hOffset  = CGFloat(settings.horizontalOffset)
-        let vOffset  = CGFloat(settings.verticalOffset)  // positive = down
+        let hOffset  = CGFloat(profile.horizontalOffset)
+        let vOffset  = CGFloat(profile.verticalOffset)  // positive = down
 
         let x: CGFloat
         if let rightArea = screen.auxiliaryTopRightArea {
-            // Notch screen.
+            // Notch screen — only .right / .left reach here (.center coerced away at load).
             let notchRightEdge = sf.minX + (sf.width - rightArea.width)
-            switch settings.mascotDirection {
-            case .right:
+            switch profile.mascotDirection {
+            case .right, .center:
                 // Anchor panel's left edge just left of the notch's right boundary;
                 // HStack(.leading) places the first mascot flush against the notch.
                 x = notchRightEdge - 2 + hOffset
@@ -119,7 +126,9 @@ final class NotchWindowController: NSObject {
                 x = notchLeftEdge + 2 - windowW + hOffset
             }
         } else {
-            // Non-notch: center the panel in the menu bar
+            // External / non-notch screen: panel centered in menu bar; HStack alignment
+            // (driven by mascotDirection) decides where the mascot sits inside the panel.
+            // .center → mascots centered. .right/.left → flush against panel edge.
             x = sf.minX + (sf.width - windowW) / 2 + hOffset
         }
 
