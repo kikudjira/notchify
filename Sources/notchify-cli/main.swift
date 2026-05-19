@@ -1,7 +1,27 @@
 import Foundation
 import Darwin
 
-let args = CommandLine.arguments
+let rawArgs = CommandLine.arguments
+
+/// Extracts `--config-dir <path>` occurrences (repeatable). Returns the remaining
+/// argv and the override list (nil = no flag given, use configured targets).
+func parseConfigDirFlag(_ args: [String]) -> (rest: [String], override: [URL]?) {
+    var rest: [String] = []
+    var dirs: [URL] = []
+    var i = 0
+    while i < args.count {
+        if args[i] == "--config-dir", i + 1 < args.count {
+            dirs.append(HookTargetsConfig.expand(args[i + 1]))
+            i += 2
+        } else {
+            rest.append(args[i])
+            i += 1
+        }
+    }
+    return (rest, dirs.isEmpty ? nil : dirs)
+}
+
+let (args, configDirOverride) = parseConfigDirFlag(rawArgs)
 let command = args.count >= 2 ? args[1] : ""
 
 // ---- help ----
@@ -10,12 +30,20 @@ if command == "help" || command == "--help" || command == "-h" || command.isEmpt
     notchify — pixel mascot for Claude Code in the MacBook notch area
 
     USAGE
-      notchify set <status>   Send a status to the running app
-      notchify clear          Clear all stuck animations (keeps the app running)
-      notchify launch         Launch the app
-      notchify quit           Quit the running app
-      notchify config         Interactive configurator (hooks, sounds, startup)
-      notchify help           Show this help
+      notchify set <status>          Send a status to the running app
+      notchify clear                 Clear all stuck animations (keeps app running)
+      notchify launch                Launch the app
+      notchify quit                  Quit the running app
+      notchify config                Interactive configurator (hooks, sounds, startup)
+      notchify hooks targets list    List Claude config dirs receiving hooks
+      notchify hooks targets add     Add a config dir (e.g. ~/.claude-work)
+      notchify hooks targets remove  Remove a config dir
+      notchify hooks reinstall       Re-apply current hook state to every target
+      notchify help                  Show this help
+
+    FLAGS
+      --config-dir <path>   Override hook target for this invocation (repeatable).
+                            Works with: launch, hooks reinstall
 
     STATUSES
       working   Claude is using a tool
@@ -28,10 +56,9 @@ if command == "help" || command == "--help" || command == "-h" || command.isEmpt
 
     EXAMPLES
       notchify set working
-      notchify set idle
       notchify launch
-      notchify quit
-      notchify config
+      notchify hooks targets add ~/.claude-work
+      CLAUDE_CONFIG_DIR=~/.claude-work claude
     """)
     exit(0)
 }
@@ -54,16 +81,59 @@ if command == "clear" {
     exit(0)
 }
 
+// ---- hooks ----
+if command == "hooks" {
+    let sub = args.count >= 3 ? args[2] : ""
+    switch sub {
+    case "targets":
+        let action = args.count >= 4 ? args[3] : "list"
+        switch action {
+        case "list":
+            for url in HookTargetsConfig.load() { print(url.path) }
+        case "add":
+            guard args.count >= 5 else {
+                fputs("Usage: notchify hooks targets add <path>\n", stderr); exit(1)
+            }
+            HookTargetsConfig.add(HookTargetsConfig.expand(args[4]))
+            HooksConfig.reinstall()
+        case "remove":
+            guard args.count >= 5 else {
+                fputs("Usage: notchify hooks targets remove <path>\n", stderr); exit(1)
+            }
+            HookTargetsConfig.remove(HookTargetsConfig.expand(args[4]))
+        default:
+            fputs("Usage: notchify hooks targets [list|add <path>|remove <path>]\n", stderr); exit(1)
+        }
+    case "reinstall":
+        HooksConfig.reinstall(override: configDirOverride)
+    default:
+        fputs("Usage: notchify hooks [targets ...|reinstall] [--config-dir <path>]\n", stderr); exit(1)
+    }
+    exit(0)
+}
+
 // ---- launch ----
 if command == "launch" {
+    // First-run hint for users with split Claude config dirs (~/.claude-work etc.)
+    let fm = FileManager.default
+    let hookTargetsExists = fm.fileExists(atPath: HookTargetsConfig.configURL.path)
+    if !hookTargetsExists && configDirOverride == nil {
+        let candidates = HookTargetsConfig.detectCandidates()
+        if candidates.count > 1 {
+            let names = candidates.map { $0.lastPathComponent }.joined(separator: ", ")
+            fputs("notchify: detected multiple Claude config dirs (\(names)).\n", stderr)
+            fputs("         Run `notchify config` → Hooks → Config targets to enable animations in all of them.\n", stderr)
+        }
+    }
+
     // Migrate old hooks/wrapper before checking state
-    HooksConfig.migrate()
+    HooksConfig.migrate(override: configDirOverride)
     ShellWrapperConfig.migrateIfNeeded()
     // Auto-enable all hooks and startup animation on first launch if none are configured yet
-    let hookState = HooksConfig.load()
-    if !hookState.working { HooksConfig.setWorking(true) }
-    if !hookState.done    { HooksConfig.setDone(true) }
-    if !hookState.waiting { HooksConfig.setWaiting(true) }
+    let hookState = HooksConfig.load(override: configDirOverride)
+    if !hookState.working { HooksConfig.setWorking(true, override: configDirOverride) }
+    if !hookState.done    { HooksConfig.setDone(true,    override: configDirOverride) }
+    if !hookState.waiting { HooksConfig.setWaiting(true, override: configDirOverride) }
 
     let appPath = resolveAppPath()
     guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {

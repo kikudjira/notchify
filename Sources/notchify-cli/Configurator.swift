@@ -80,11 +80,12 @@ struct Configurator {
 
     private static func hooksMenu() {
         var sel = 0
-        let rowCount = 4  // 3 toggles + Back
+        let rowCount = 6  // 3 toggles + targets + reinstall + Back
 
         while true {
-            let state = HooksConfig.load()
-            renderHooks(sel: sel, state: state)
+            let state   = HooksConfig.load()
+            let targets = HookTargetsConfig.load()
+            renderHooks(sel: sel, state: state, targets: targets)
 
             switch Terminal.readKey() {
             case .up:              sel = (sel - 1 + rowCount) % rowCount
@@ -94,7 +95,11 @@ struct Configurator {
                 case 0: HooksConfig.setWorking(!state.working)
                 case 1: HooksConfig.setDone(!state.done)
                 case 2: HooksConfig.setWaiting(!state.waiting)
-                case 3: return
+                case 3: pickHookTargets()
+                case 4:
+                    HooksConfig.reinstall()
+                    toast("Hooks reinstalled in \(HookTargetsConfig.load().count) target(s)")
+                case 5: return
                 default: break
                 }
             case .char("b"), .char("q"), .char("\u{03}"): return
@@ -103,14 +108,14 @@ struct Configurator {
         }
     }
 
-    private static func renderHooks(sel: Int, state: HookState) {
+    private static func renderHooks(sel: Int, state: HookState, targets: [URL]) {
         ANSI.clearScreen()
-        ANSI.header("Hooks", subtitle: "~/.claude/settings.json")
+        ANSI.header("Hooks", subtitle: targetsSubtitle(targets))
 
         let rows: [(String, String, Bool)] = [
             ("working", "UserPromptSubmit/PostToolUse", state.working),
             ("done",    "Stop",                           state.done),
-            ("waiting", "Notification",                   state.waiting),
+            ("waiting", "Notification/PermissionRequest", state.waiting),
         ]
         for (i, (name, detail, on)) in rows.enumerated() {
             let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
@@ -119,11 +124,143 @@ struct Configurator {
             print("  \(cur) \(lbl)  \(ANSI.dim)\(detail)\(ANSI.reset)  \(on ? ANSI.on() : ANSI.off())")
         }
         print()
-        let bCur = 3 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let bLbl = 3 == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+
+        let tCur = 3 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let tLbl = 3 == sel ? "\(ANSI.bold)Config targets\(ANSI.reset)" : "Config targets"
+        let tCount = "\(ANSI.cyan)\(targets.count)\(ANSI.reset) selected"
+        print("  \(tCur) \(tLbl)  \(tCount)  \(ANSI.dim)›\(ANSI.reset)")
+
+        let rCur = 4 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let rLbl = 4 == sel ? "\(ANSI.bold)Reinstall hooks\(ANSI.reset)" : "Reinstall hooks"
+        print("  \(rCur) \(rLbl)  \(ANSI.dim)re-apply current state to every target\(ANSI.reset)")
+        print()
+
+        let bCur = 5 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = 5 == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
         print("  \(bCur) \(bLbl)")
         print()
         footer("↑↓ move   enter/space toggle   q/b quit/back")
+    }
+
+    private static func targetsSubtitle(_ targets: [URL]) -> String {
+        if targets.isEmpty { return "no targets" }
+        if targets.count == 1 { return "\(displayPath(targets[0]))/settings.json" }
+        if targets.count <= 3 {
+            return targets.map { displayPath($0) }.joined(separator: ", ")
+        }
+        return "\(targets.count) targets"
+    }
+
+    // MARK: - Hook Targets Picker
+
+    private static func pickHookTargets() {
+        var selected = Set(HookTargetsConfig.load().map { $0.standardizedFileURL.path })
+        var candidates = HookTargetsConfig.detectCandidates().map { $0.standardizedFileURL }
+
+        // Include any currently-selected paths that aren't in the autodetect list.
+        for path in selected where !candidates.contains(where: { $0.path == path }) {
+            candidates.append(URL(fileURLWithPath: path))
+        }
+
+        var cursor = 0
+
+        while true {
+            let rowCount = candidates.count + 3  // candidates + "Add custom..." + Save + Cancel
+            renderPickTargets(cursor: cursor, candidates: candidates, selected: selected)
+
+            switch Terminal.readKey() {
+            case .up:   cursor = (cursor - 1 + rowCount) % rowCount
+            case .down: cursor = (cursor + 1) % rowCount
+            case .space, .enter:
+                if cursor < candidates.count {
+                    let path = candidates[cursor].path
+                    if selected.contains(path) {
+                        selected.remove(path)
+                    } else {
+                        selected.insert(path)
+                    }
+                } else if cursor == candidates.count {
+                    // Add custom path
+                    Terminal.restore()
+                    ANSI.clearScreen()
+                    print()
+                    print("  \(ANSI.dim)Claude config dir (~/...): \(ANSI.reset)", terminator: "")
+                    fflush(stdout)
+                    let raw = readLine(strippingNewline: true) ?? ""
+                    Terminal.enableRaw()
+                    let trimmed = raw.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty {
+                        let url = HookTargetsConfig.expand(trimmed).standardizedFileURL
+                        if !candidates.contains(where: { $0.path == url.path }) {
+                            candidates.append(url)
+                        }
+                        selected.insert(url.path)
+                    }
+                } else if cursor == candidates.count + 1 {
+                    // Save
+                    let urls = candidates.filter { selected.contains($0.path) }
+                    let final = urls.isEmpty ? [HookTargetsConfig.defaultTarget] : urls
+                    HookTargetsConfig.save(final)
+                    HooksConfig.reinstall()
+                    return
+                } else if cursor == candidates.count + 2 {
+                    // Cancel
+                    return
+                }
+            case .char("a"):
+                cursor = candidates.count  // jump to "Add custom..."
+            case .char("b"), .char("q"), .char("\u{03}"): return
+            default: break
+            }
+        }
+    }
+
+    private static func renderPickTargets(cursor: Int, candidates: [URL], selected: Set<String>) {
+        ANSI.clearScreen()
+        ANSI.header("Hook targets", subtitle: "~/.config/notchify/hook_targets.json")
+
+        for (i, url) in candidates.enumerated() {
+            let cur  = i == cursor ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let mark = selected.contains(url.path)
+                ? "\(ANSI.green)[x]\(ANSI.reset)"
+                : "\(ANSI.dim)[ ]\(ANSI.reset)"
+            let path = displayPath(url)
+            let lbl  = i == cursor ? "\(ANSI.bold)\(path)\(ANSI.reset)" : path
+            print("  \(cur) \(mark) \(lbl)")
+        }
+        print()
+
+        let aRow = candidates.count
+        let aCur = aRow == cursor ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let aLbl = aRow == cursor ? "\(ANSI.bold)Add custom path...\(ANSI.reset)" : "Add custom path..."
+        print("  \(aCur) \(aLbl)")
+
+        let sRow = candidates.count + 1
+        let sCur = sRow == cursor ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let sLbl = sRow == cursor ? "\(ANSI.bold)Save\(ANSI.reset)" : "Save"
+        print("  \(sCur) \(sLbl)  \(ANSI.dim)apply selection and reinstall hooks\(ANSI.reset)")
+
+        let cRow = candidates.count + 2
+        let cCur = cRow == cursor ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let cLbl = cRow == cursor ? "\(ANSI.bold)Cancel\(ANSI.reset)" : "Cancel"
+        print("  \(cCur) \(cLbl)")
+        print()
+        footer("↑↓ move   space toggle   a add   enter select   q/b cancel")
+    }
+
+    private static func displayPath(_ url: URL) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = url.standardizedFileURL.path
+        if path == home { return "~" }
+        if path.hasPrefix(home + "/") { return "~" + path.dropFirst(home.count) }
+        return path
+    }
+
+    private static func toast(_ message: String) {
+        ANSI.clearScreen()
+        print()
+        print("  \(ANSI.green)✓\(ANSI.reset)  \(message)")
+        Thread.sleep(forTimeInterval: 1.2)
     }
 
     // MARK: - Sounds Menu
