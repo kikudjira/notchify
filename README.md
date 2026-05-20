@@ -79,9 +79,11 @@ Check installed version: `brew list --versions notchify`.
 
 Run `notchify config` to open the interactive menu.
 
-### Hooks
+### Integrations
 
-Enable or disable Claude Code triggers that drive the animations:
+Everything Notchify wires into Claude lives here: the Claude Code event hooks and the shell wrapper that plays the intro/outro animations. A single **Integrations** master toggle at the top of the submenu flips all of them on or off at once.
+
+Claude Code triggers that drive the animations:
 
 | Hook    | Claude Code event                         | Animation  |
 |---------|-------------------------------------------|------------|
@@ -91,7 +93,9 @@ Enable or disable Claude Code triggers that drive the animations:
 
 Hooks are written to `~/.claude/settings.json` and enabled automatically on first `notchify launch`.
 
-**Multiple Claude accounts.** If you split accounts via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude-work`, `~/.claude-personal`), open `notchify config → Hooks → Config targets` and tick every directory that should get animations. The list is saved to `~/.config/notchify/hook_targets.json` and every hook toggle / reinstall propagates to all selected targets. CLI equivalents:
+**Shell wrapper (intro/outro animation).** Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
+
+**Multiple Claude accounts.** If you split accounts via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude-work`, `~/.claude-personal`), open `notchify config → Integrations → Config targets` and tick every directory that should get animations. The list is saved to `~/.config/notchify/hook_targets.json` and every hook toggle / reinstall propagates to all selected targets. CLI equivalents:
 
 ```sh
 notchify hooks targets list
@@ -112,10 +116,6 @@ Available system sound names: Hero, Glass, Ping, Basso, Blow, Bottle, Frog, Funk
 Custom file example: `{ "file": "~/sounds/done.mp3" }`. Set to `null` to disable a state.
 
 Top-level `volume` (0.0–1.0) applies to every sound and is scaled further by the macOS system output level. Example: `{ "volume": 0.4, "start": { "system": "Hero" }, ... }`. Missing or `1.0` means full volume.
-
-### Intro/outro animation
-
-Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
 
 ### Login item
 
@@ -159,8 +159,8 @@ Optional cleanup of leftovers:
 ## Troubleshooting
 
 - **Mascot doesn't appear** — confirm your MacBook actually has a notch (Pro/Air 2021+). Try `notchify launch` again, then `notchify set working` to force a frame.
-- **Hooks don't fire** — open `notchify config → Hooks` and toggle them on. Make sure `~/.claude/settings.json` is valid JSON.
-- **No animations from `claude-work` / `claude-personal`** — you split Claude config dirs via `CLAUDE_CONFIG_DIR` but hooks live only in `~/.claude/settings.json`. Open `notchify config → Hooks → Config targets`, tick every directory you use, save.
+- **Hooks don't fire** — open `notchify config → Integrations` and toggle them on. Make sure `~/.claude/settings.json` is valid JSON.
+- **No animations from `claude-work` / `claude-personal`** — you split Claude config dirs via `CLAUDE_CONFIG_DIR` but hooks live only in `~/.claude/settings.json`. Open `notchify config → Integrations → Config targets`, tick every directory you use, save.
 - **Mascot on the wrong screen** — `notchify config → Display`, pick a specific screen or `Auto`.
 - **Intro/outro doesn't play** — open a new terminal or run `source ~/.zshrc` after enabling.
 - **Stuck animation** — `notchify clear` resets all states without quitting the app.

@@ -12,12 +12,11 @@ struct Configurator {
 
     private static func mainMenu() {
         var sel = 0
-        let rowCount = 6  // 5 items + Quit
+        let rowCount = 5  // 4 items + Quit
 
         while true {
-            let startup = ShellWrapperConfig.isEnabled()
-            let login   = LoginItemConfig.isEnabled()
-            renderMain(sel: sel, startup: startup, login: login)
+            let login = LoginItemConfig.isEnabled()
+            renderMain(sel: sel, login: login)
 
             switch Terminal.readKey() {
             case .up:               sel = (sel - 1 + rowCount) % rowCount
@@ -26,10 +25,9 @@ struct Configurator {
                 switch sel {
                 case 0: displayMenu()
                 case 1: soundsMenu()
-                case 2: hooksMenu()
-                case 3: toggleStartup(startup)
-                case 4: toggleLoginItem(login)
-                case 5: return
+                case 2: integrationsMenu()
+                case 3: toggleLoginItem(login)
+                case 4: return
                 default: break
                 }
             case .char("q"), .char("\u{03}"): return
@@ -38,7 +36,7 @@ struct Configurator {
         }
     }
 
-    private static func renderMain(sel: Int, startup: Bool, login: Bool) {
+    private static func renderMain(sel: Int, login: Bool) {
         ANSI.clearScreen()
         ANSI.header("Notchify Config")
 
@@ -49,16 +47,15 @@ struct Configurator {
             print("  \(cur) \(lbl)\(det)  \(right)")
         }
 
-        row(0, "Display",              "screen/position",  "›")
-        row(1, "Sounds",              "per-state audio",  "›")
+        row(0, "Display",      "screen/position",   "›")
+        row(1, "Sounds",       "per-state audio",   "›")
         print()
-        row(2, "Hooks",               "Claude Code triggers", "›")
-        row(3, "Intro/outro animation","shell wrapper",   startup ? ANSI.on() : ANSI.off())
+        row(2, "Integrations", "hooks + shell wrapper", "›")
         print()
-        row(4, "Login item",          "",                 login ? ANSI.on() : ANSI.off())
+        row(3, "Login item",   "",                  login ? ANSI.on() : ANSI.off())
         print()
-        let qCur = 5 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let qLbl = 5 == sel ? "\(ANSI.bold)Quit\(ANSI.reset)" : "Quit"
+        let qCur = 4 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let qLbl = 4 == sel ? "\(ANSI.bold)Quit\(ANSI.reset)" : "Quit"
         print("  \(qCur) \(qLbl)")
         print()
         footer("↑↓ move   enter/space select   q/b quit/back")
@@ -76,30 +73,33 @@ struct Configurator {
         fflush(stdout)
     }
 
-    // MARK: - Hooks Menu
+    // MARK: - Integrations Menu
 
-    private static func hooksMenu() {
+    private static func integrationsMenu() {
         var sel = 0
-        let rowCount = 6  // 3 toggles + targets + reinstall + Back
+        let rowCount = 7  // targets + master + 3 hooks + intro/outro + Back
 
         while true {
             let state   = HooksConfig.load()
+            let wrapper = ShellWrapperConfig.isEnabled()
             let targets = HookTargetsConfig.load()
-            renderHooks(sel: sel, state: state, targets: targets)
+            let master  = state.working && state.done && state.waiting && wrapper
+            renderIntegrations(sel: sel, state: state, wrapper: wrapper, master: master, targets: targets)
 
             switch Terminal.readKey() {
             case .up:              sel = (sel - 1 + rowCount) % rowCount
             case .down:            sel = (sel + 1) % rowCount
             case .space, .enter:
                 switch sel {
-                case 0: HooksConfig.setWorking(!state.working)
-                case 1: HooksConfig.setDone(!state.done)
-                case 2: HooksConfig.setWaiting(!state.waiting)
-                case 3: pickHookTargets()
-                case 4:
-                    HooksConfig.reinstall()
-                    toast("Hooks reinstalled in \(HookTargetsConfig.load().count) target(s)")
-                case 5: return
+                case 0: pickHookTargets()
+                case 1: toggleMaster(currentlyOn: master)
+                case 2: HooksConfig.setWorking(!state.working)
+                case 3: HooksConfig.setDone(!state.done)
+                case 4: HooksConfig.setWaiting(!state.waiting)
+                case 5:
+                    if wrapper { ShellWrapperConfig.disable() }
+                    else       { ShellWrapperConfig.enable()  }
+                case 6: return
                 default: break
                 }
             case .char("b"), .char("q"), .char("\u{03}"): return
@@ -108,35 +108,63 @@ struct Configurator {
         }
     }
 
-    private static func renderHooks(sel: Int, state: HookState, targets: [URL]) {
-        ANSI.clearScreen()
-        ANSI.header("Hooks", subtitle: targetsSubtitle(targets))
+    private static func toggleMaster(currentlyOn: Bool) {
+        let enable = !currentlyOn
+        HooksConfig.setWorking(enable)
+        HooksConfig.setDone(enable)
+        HooksConfig.setWaiting(enable)
+        if enable { ShellWrapperConfig.enable() }
+        else      { ShellWrapperConfig.disable() }
+    }
 
-        let rows: [(String, String, Bool)] = [
-            ("working", "UserPromptSubmit/PostToolUse", state.working),
-            ("done",    "Stop",                           state.done),
-            ("waiting", "Notification/PermissionRequest", state.waiting),
+    private static func renderIntegrations(
+        sel: Int,
+        state: HookState,
+        wrapper: Bool,
+        master: Bool,
+        targets: [URL]
+    ) {
+        ANSI.clearScreen()
+        ANSI.header("Integrations", subtitle: targetsSubtitle(targets))
+
+        // Row 0 — Config targets
+        let tCur = 0 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let tLbl = 0 == sel ? "\(ANSI.bold)Config targets\(ANSI.reset)" : "Config targets"
+        let tCount = "\(ANSI.cyan)\(targets.count)\(ANSI.reset) selected"
+        print("  \(tCur) \(tLbl)  \(tCount)  \(ANSI.dim)›\(ANSI.reset)")
+        print()
+
+        // Row 1 — master toggle
+        let mCur = 1 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let mLbl = 1 == sel ? "\(ANSI.bold)Integrations\(ANSI.reset)" : "Integrations"
+        print("  \(mCur) \(mLbl)  \(master ? ANSI.on() : ANSI.off())  \(ANSI.dim)master — all of below\(ANSI.reset)")
+        print()
+
+        // Animation hooks group
+        print("  \(ANSI.dim)Animation hooks  ·  Claude Code triggers\(ANSI.reset)")
+        let hookRows: [(idx: Int, name: String, detail: String, on: Bool)] = [
+            (2, "working", "UserPromptSubmit/PostToolUse",   state.working),
+            (3, "done",    "Stop",                           state.done),
+            (4, "waiting", "Notification/PermissionRequest", state.waiting),
         ]
-        for (i, (name, detail, on)) in rows.enumerated() {
-            let cur = i == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-            let pad = name.padding(toLength: 8, withPad: " ", startingAt: 0)
-            let lbl = i == sel ? "\(ANSI.bold)\(pad)\(ANSI.reset)" : pad
-            print("  \(cur) \(lbl)  \(ANSI.dim)\(detail)\(ANSI.reset)  \(on ? ANSI.on() : ANSI.off())")
+        for r in hookRows {
+            let cur = r.idx == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+            let pad = r.name.padding(toLength: 8, withPad: " ", startingAt: 0)
+            let lbl = r.idx == sel ? "\(ANSI.bold)\(pad)\(ANSI.reset)" : pad
+            print("  \(cur) \(lbl)  \(ANSI.dim)\(r.detail)\(ANSI.reset)  \(r.on ? ANSI.on() : ANSI.off())")
         }
         print()
 
-        let tCur = 3 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let tLbl = 3 == sel ? "\(ANSI.bold)Config targets\(ANSI.reset)" : "Config targets"
-        let tCount = "\(ANSI.cyan)\(targets.count)\(ANSI.reset) selected"
-        print("  \(tCur) \(tLbl)  \(tCount)  \(ANSI.dim)›\(ANSI.reset)")
-
-        let rCur = 4 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let rLbl = 4 == sel ? "\(ANSI.bold)Reinstall hooks\(ANSI.reset)" : "Reinstall hooks"
-        print("  \(rCur) \(rLbl)  \(ANSI.dim)re-apply current state to every target\(ANSI.reset)")
+        // Shell wrapper group
+        print("  \(ANSI.dim)Shell wrapper  ·  ~/.zshrc, ~/.bashrc\(ANSI.reset)")
+        let wCur = 5 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let wLbl = 5 == sel ? "\(ANSI.bold)intro/outro animation\(ANSI.reset)" : "intro/outro animation"
+        print("  \(wCur) \(wLbl)  \(wrapper ? ANSI.on() : ANSI.off())")
         print()
 
-        let bCur = 5 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
-        let bLbl = 5 == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
+        // Back
+        let bCur = 6 == sel ? "\(ANSI.cyan)▸\(ANSI.reset)" : " "
+        let bLbl = 6 == sel ? "\(ANSI.bold)Back\(ANSI.reset)" : "Back"
         print("  \(bCur) \(bLbl)")
         print()
         footer("↑↓ move   enter/space toggle   q/b quit/back")
@@ -254,13 +282,6 @@ struct Configurator {
         if path == home { return "~" }
         if path.hasPrefix(home + "/") { return "~" + path.dropFirst(home.count) }
         return path
-    }
-
-    private static func toast(_ message: String) {
-        ANSI.clearScreen()
-        print()
-        print("  \(ANSI.green)✓\(ANSI.reset)  \(message)")
-        Thread.sleep(forTimeInterval: 1.2)
     }
 
     // MARK: - Sounds Menu
@@ -427,10 +448,6 @@ struct Configurator {
     }
 
     // MARK: - Toggle Helpers
-
-    private static func toggleStartup(_ current: Bool) {
-        if current { ShellWrapperConfig.disable() } else { ShellWrapperConfig.enable() }
-    }
 
     private static func toggleLoginItem(_ current: Bool) {
         if current {
