@@ -95,7 +95,7 @@ Hooks are written to `~/.claude/settings.json` and enabled automatically on firs
 
 **Shell wrapper (intro/outro animation).** Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
 
-**Multiple Claude accounts.** If you split accounts via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude-work`, `~/.claude-personal`), open `notchify config → Integrations → Config targets` and tick every directory that should get animations. The list is saved to `~/.config/notchify/hook_targets.json` and every hook toggle / reinstall propagates to all selected targets. CLI equivalents:
+**Multiple Claude accounts.** If you split accounts via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude-work`, `~/.claude-personal`), open `notchify config → Integrations → Config targets` and tick every directory that should get animations. The list is saved to `~/.config/notchify/hook_targets.json` and every hook toggle / reinstall propagates to all selected targets. Unchecking a directory (or removing it via CLI) strips Notchify's hooks from its `settings.json` before forgetting it — any unrelated hooks in that file are preserved. CLI equivalents:
 
 ```sh
 notchify hooks targets list
@@ -147,12 +147,14 @@ brew uninstall notchify
 brew untap kikudjira/notchify
 ```
 
+Tip: run `notchify config → Integrations` and flip the master toggle off **before** uninstalling — it strips Claude Code hooks from every configured target and removes the `claude()` shell wrapper in one step.
+
 Optional cleanup of leftovers:
 
 - `~/Library/LaunchAgents/com.notchify.app.plist` — login item
-- `claude()` function in `~/.zshrc` / `~/.bashrc` — intro/outro wrapper
+- `claude()` function in `~/.zshrc` / `~/.bashrc` — intro/outro wrapper (handled by the master toggle)
 - `~/.config/notchify/` — sounds, display, and hook target list
-- Hooks in `<each configured target>/settings.json` (default `~/.claude/settings.json`) — entries that call `notchify set ...`
+- Hooks in `<each configured target>/settings.json` (default `~/.claude/settings.json`) — entries that call `notchify set ...` (handled by the master toggle)
 
 ---
 
