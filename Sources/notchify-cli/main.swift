@@ -100,7 +100,13 @@ if command == "hooks" {
             guard args.count >= 5 else {
                 fputs("Usage: notchify hooks targets remove <path>\n", stderr); exit(1)
             }
-            HookTargetsConfig.remove(HookTargetsConfig.expand(args[4]))
+            let url = HookTargetsConfig.expand(args[4])
+            // Strip notchify hooks from the dir before forgetting it — once
+            // it's out of the targets list, future mutations can't reach it.
+            HooksConfig.setWorking(false, override: [url])
+            HooksConfig.setDone(false,    override: [url])
+            HooksConfig.setWaiting(false, override: [url])
+            HookTargetsConfig.remove(url)
         default:
             fputs("Usage: notchify hooks targets [list|add <path>|remove <path>]\n", stderr); exit(1)
         }

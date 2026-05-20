@@ -225,9 +225,19 @@ struct Configurator {
                         selected.insert(url.path)
                     }
                 } else if cursor == candidates.count + 1 {
-                    // Save
+                    // Save — strip notchify hooks from targets being removed first,
+                    // so the user gets a clean cleanup of any dir they unchecked
+                    // (the targets list never reaches those dirs after save).
+                    let oldList = HookTargetsConfig.load()
                     let urls = candidates.filter { selected.contains($0.path) }
                     let final = urls.isEmpty ? [HookTargetsConfig.defaultTarget] : urls
+                    let finalPaths = Set(final.map { $0.standardizedFileURL.path })
+                    let removed = oldList.filter { !finalPaths.contains($0.standardizedFileURL.path) }
+                    for url in removed {
+                        HooksConfig.setWorking(false, override: [url])
+                        HooksConfig.setDone(false,    override: [url])
+                        HooksConfig.setWaiting(false, override: [url])
+                    }
                     HookTargetsConfig.save(final)
                     HooksConfig.reinstall()
                     return
