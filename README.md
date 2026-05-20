@@ -79,9 +79,11 @@ Check installed version: `brew list --versions notchify`.
 
 Run `notchify config` to open the interactive menu.
 
-### Hooks
+### Integrations
 
-Enable or disable Claude Code triggers that drive the animations:
+Everything Notchify wires into Claude lives here: the Claude Code event hooks and the shell wrapper that plays the intro/outro animations. A single **Integrations** master toggle at the top of the submenu flips all of them on or off at once.
+
+Claude Code triggers that drive the animations:
 
 | Hook    | Claude Code event                         | Animation  |
 |---------|-------------------------------------------|------------|
@@ -90,6 +92,18 @@ Enable or disable Claude Code triggers that drive the animations:
 | waiting | `Notification`, `PermissionRequest`       | waiting    |
 
 Hooks are written to `~/.claude/settings.json` and enabled automatically on first `notchify launch`.
+
+**Shell wrapper (intro/outro animation).** Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
+
+**Multiple Claude accounts.** If you split accounts via `CLAUDE_CONFIG_DIR` (e.g. `~/.claude-work`, `~/.claude-personal`), open `notchify config → Integrations → Config targets` and tick every directory that should get animations. The list is saved to `~/.config/notchify/hook_targets.json` and every hook toggle / reinstall propagates to all selected targets. Unchecking a directory (or removing it via CLI) strips Notchify's hooks from its `settings.json` before forgetting it — any unrelated hooks in that file are preserved. CLI equivalents:
+
+```sh
+notchify hooks targets list
+notchify hooks targets add ~/.claude-work
+notchify hooks targets remove ~/.claude-work
+notchify hooks reinstall                       # re-apply current state to every target
+notchify hooks reinstall --config-dir ~/.x     # one-off override, repeatable
+```
 
 ### Sounds
 
@@ -102,10 +116,6 @@ Available system sound names: Hero, Glass, Ping, Basso, Blow, Bottle, Frog, Funk
 Custom file example: `{ "file": "~/sounds/done.mp3" }`. Set to `null` to disable a state.
 
 Top-level `volume` (0.0–1.0) applies to every sound and is scaled further by the macOS system output level. Example: `{ "volume": 0.4, "start": { "system": "Hero" }, ... }`. Missing or `1.0` means full volume.
-
-### Intro/outro animation
-
-Wraps the `claude` shell command so `start` plays when you open a session and `bye` plays when you close it. Adds a `claude()` function to `~/.zshrc` / `~/.bashrc`. Restart the terminal or run `source ~/.zshrc` after enabling.
 
 ### Login item
 
@@ -137,19 +147,22 @@ brew uninstall notchify
 brew untap kikudjira/notchify
 ```
 
+Tip: run `notchify config → Integrations` and flip the master toggle off **before** uninstalling — it strips Claude Code hooks from every configured target and removes the `claude()` shell wrapper in one step.
+
 Optional cleanup of leftovers:
 
 - `~/Library/LaunchAgents/com.notchify.app.plist` — login item
-- `claude()` function in `~/.zshrc` / `~/.bashrc` — intro/outro wrapper
-- `~/.config/notchify/` — sounds and display settings
-- Hooks in `~/.claude/settings.json` — entries that call `notchify set ...`
+- `claude()` function in `~/.zshrc` / `~/.bashrc` — intro/outro wrapper (handled by the master toggle)
+- `~/.config/notchify/` — sounds, display, and hook target list
+- Hooks in `<each configured target>/settings.json` (default `~/.claude/settings.json`) — entries that call `notchify set ...` (handled by the master toggle)
 
 ---
 
 ## Troubleshooting
 
 - **Mascot doesn't appear** — confirm your MacBook actually has a notch (Pro/Air 2021+). Try `notchify launch` again, then `notchify set working` to force a frame.
-- **Hooks don't fire** — open `notchify config → Hooks` and toggle them on. Make sure `~/.claude/settings.json` is valid JSON.
+- **Hooks don't fire** — open `notchify config → Integrations` and toggle them on. Make sure `~/.claude/settings.json` is valid JSON.
+- **No animations from `claude-work` / `claude-personal`** — you split Claude config dirs via `CLAUDE_CONFIG_DIR` but hooks live only in `~/.claude/settings.json`. Open `notchify config → Integrations → Config targets`, tick every directory you use, save.
 - **Mascot on the wrong screen** — `notchify config → Display`, pick a specific screen or `Auto`.
 - **Intro/outro doesn't play** — open a new terminal or run `source ~/.zshrc` after enabling.
 - **Stuck animation** — `notchify clear` resets all states without quitting the app.
@@ -159,13 +172,20 @@ Optional cleanup of leftovers:
 ## CLI reference
 
 ```sh
-notchify launch        # launch the app (enables hooks on first run)
-notchify quit          # quit the running app
-notchify clear         # clear all stuck animations (keeps the app running)
-notchify config        # interactive config (hooks, sounds, display, login item)
-notchify set <state>   # send a state manually (working / waiting / done / error / start / bye / idle)
-notchify help          # show help
+notchify launch              # launch the app (enables hooks on first run)
+notchify quit                # quit the running app
+notchify clear               # clear all stuck animations (keeps the app running)
+notchify config              # interactive config (hooks, sounds, display, login item)
+notchify set <state>         # send a state manually (working / waiting / done / error / start / bye / idle)
+notchify hooks targets list  # list Claude config dirs receiving hooks
+notchify hooks targets add <path>     # add a config dir (e.g. ~/.claude-work)
+notchify hooks targets remove <path>  # remove a config dir
+notchify hooks reinstall     # re-apply current hook state to every target
+notchify help                # show help
 ```
+
+`--config-dir <path>` works with `launch` and `hooks reinstall` to override the
+configured targets for that single invocation; pass it multiple times for several dirs.
 
 ---
 
@@ -200,7 +220,8 @@ Sources/
   notchify-cli/                CLI binary
     main.swift                 command dispatcher
     Configurator.swift         interactive config TUI
-    HooksConfig.swift          read/write Claude Code hooks
+    HooksConfig.swift          read/write Claude Code hooks across all targets
+    HookTargetsConfig.swift    list of Claude config dirs receiving hooks
     DisplayConfig.swift        screen, offsets, mascot direction
     SoundsConfig.swift         per-state sound assignments
     LoginItemConfig.swift      launchd agent registration

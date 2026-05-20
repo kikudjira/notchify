@@ -7,9 +7,6 @@ struct HookState {
 }
 
 enum HooksConfig {
-    static let settingsURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".claude/settings.json")
-
     private static let workingCommands = [
         "notchify set working --agent \"$NOTCHIFY_AGENT_ID\""
     ]
@@ -30,67 +27,98 @@ enum HooksConfig {
     // PermissionRequest fires when Claude Code shows a tool approval dialog.
     private static let waitingEvents = ["Notification", "PermissionRequest"]
 
-    static func load() -> HookState {
-        guard let json = loadJSON() else { return HookState(working: false, done: false, waiting: false) }
-        let hooks = json["hooks"] as? [String: Any] ?? [:]
-
-        let workingOn = workingEvents.allSatisfy { event in
-            commandPresent(workingCommands[0], in: hooks, event: event)
-        }
-        let waitingOn = waitingEvents.allSatisfy { event in
-            commandPresent(waitingCommands[0], in: hooks, event: event)
-        }
-        return HookState(
-            working: workingOn,
-            done:    commandPresent(doneCommands[0], in: hooks, event: "Stop"),
-            waiting: waitingOn
-        )
+    /// Resolve target settings.json URLs. Pass an explicit list to override `hook_targets.json`
+    /// (used by `--config-dir`); pass `nil` to use the configured targets.
+    static func targets(override: [URL]? = nil) -> [URL] {
+        let dirs = override ?? HookTargetsConfig.load()
+        return dirs.map { $0.appendingPathComponent("settings.json") }
     }
 
-    static func setWorking(_ enabled: Bool) {
-        var json = loadJSON() ?? [:]
-        var hooks = json["hooks"] as? [String: Any] ?? [:]
-        for event in workingEvents {
-            if enabled {
-                addHook(command: workingCommands[0], event: event, hooks: &hooks)
-            } else {
-                removeHook(command: workingCommands[0], event: event, hooks: &hooks)
-            }
+    /// Aggregate read: a hook is reported "on" only if it is enabled in **every** target.
+    /// Missing targets (no settings.json yet) count as "off" for that hook.
+    static func load(override: [URL]? = nil) -> HookState {
+        let urls = targets(override: override)
+        guard !urls.isEmpty else { return HookState(working: false, done: false, waiting: false) }
+
+        let workingOn = urls.allSatisfy { url in
+            let hooks = hooksDict(at: url)
+            return workingEvents.allSatisfy { commandPresent(workingCommands[0], in: hooks, event: $0) }
         }
-        json["hooks"] = hooks
-        saveJSON(json)
+        let waitingOn = urls.allSatisfy { url in
+            let hooks = hooksDict(at: url)
+            return waitingEvents.allSatisfy { commandPresent(waitingCommands[0], in: hooks, event: $0) }
+        }
+        let doneOn = urls.allSatisfy { url in
+            commandPresent(doneCommands[0], in: hooksDict(at: url), event: "Stop")
+        }
+        return HookState(working: workingOn, done: doneOn, waiting: waitingOn)
     }
 
-    static func setDone(_ enabled: Bool) {
-        var json = loadJSON() ?? [:]
-        var hooks = json["hooks"] as? [String: Any] ?? [:]
-        if enabled {
-            addHook(command: doneCommands[0], event: "Stop", hooks: &hooks)
-        } else {
-            removeHook(command: doneCommands[0], event: "Stop", hooks: &hooks)
-        }
-        json["hooks"] = hooks
-        saveJSON(json)
+    static func setWorking(_ enabled: Bool, override: [URL]? = nil) {
+        mutate(events: workingEvents, command: workingCommands[0], enabled: enabled, override: override)
     }
 
-    static func setWaiting(_ enabled: Bool) {
-        var json = loadJSON() ?? [:]
-        var hooks = json["hooks"] as? [String: Any] ?? [:]
-        for event in waitingEvents {
-            if enabled {
-                addHook(command: waitingCommands[0], event: event, hooks: &hooks)
-            } else {
-                removeHook(command: waitingCommands[0], event: event, hooks: &hooks)
-            }
+    static func setDone(_ enabled: Bool, override: [URL]? = nil) {
+        mutate(events: ["Stop"], command: doneCommands[0], enabled: enabled, override: override)
+    }
+
+    static func setWaiting(_ enabled: Bool, override: [URL]? = nil) {
+        mutate(events: waitingEvents, command: waitingCommands[0], enabled: enabled, override: override)
+    }
+
+    /// Re-apply hook state to every target using **union** semantics: a hook present in
+    /// any target is propagated to all. This is what makes "add a new config dir" work —
+    /// the new (empty) target picks up hooks from the existing ones rather than dragging
+    /// them down.
+    static func reinstall(override: [URL]? = nil) {
+        let urls = targets(override: override)
+        guard !urls.isEmpty else { return }
+
+        let workingOn = urls.contains { url in
+            let hooks = hooksDict(at: url)
+            return workingEvents.contains { commandPresent(workingCommands[0], in: hooks, event: $0) }
         }
-        json["hooks"] = hooks
-        saveJSON(json)
+        let waitingOn = urls.contains { url in
+            let hooks = hooksDict(at: url)
+            return waitingEvents.contains { commandPresent(waitingCommands[0], in: hooks, event: $0) }
+        }
+        let doneOn = urls.contains { url in
+            commandPresent(doneCommands[0], in: hooksDict(at: url), event: "Stop")
+        }
+
+        setWorking(workingOn, override: override)
+        setDone(doneOn,       override: override)
+        setWaiting(waitingOn, override: override)
     }
 
     /// Replaces old bare-command hooks (without --agent) with the new form.
-    /// Called on every `notchify launch` — idempotent.
-    static func migrate() {
-        var json = loadJSON() ?? [:]
+    /// Called on every `notchify launch` — idempotent across every configured target.
+    static func migrate(override: [URL]? = nil) {
+        for url in targets(override: override) {
+            migrateOne(url: url)
+        }
+    }
+
+    // MARK: - Per-target operations
+
+    private static func mutate(events: [String], command: String, enabled: Bool, override: [URL]?) {
+        for url in targets(override: override) {
+            var json = loadJSON(url: url) ?? [:]
+            var hooks = json["hooks"] as? [String: Any] ?? [:]
+            for event in events {
+                if enabled {
+                    addHook(command: command, event: event, hooks: &hooks)
+                } else {
+                    removeHook(command: command, event: event, hooks: &hooks)
+                }
+            }
+            json["hooks"] = hooks
+            saveJSON(json, url: url)
+        }
+    }
+
+    private static func migrateOne(url: URL) {
+        var json = loadJSON(url: url) ?? [:]
         var hooks = json["hooks"] as? [String: Any] ?? [:]
         var changed = false
 
@@ -120,11 +148,15 @@ enum HooksConfig {
 
         if changed {
             json["hooks"] = hooks
-            saveJSON(json)
+            saveJSON(json, url: url)
         }
     }
 
     // MARK: - Helpers
+
+    private static func hooksDict(at url: URL) -> [String: Any] {
+        (loadJSON(url: url)?["hooks"] as? [String: Any]) ?? [:]
+    }
 
     private static func commandPresent(_ command: String, in hooks: [String: Any], event: String) -> Bool {
         guard let entries = hooks[event] as? [[String: Any]] else { return false }
@@ -156,18 +188,20 @@ enum HooksConfig {
         }
     }
 
-    private static func loadJSON() -> [String: Any]? {
-        guard let data = try? Data(contentsOf: settingsURL),
+    private static func loadJSON(url: URL) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
         return json
     }
 
-    private static func saveJSON(_ json: [String: Any]) {
+    private static func saveJSON(_ json: [String: Any], url: URL) {
+        let dir = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         guard let data = try? JSONSerialization.data(
             withJSONObject: json,
             options: [.prettyPrinted, .sortedKeys]
         ) else { return }
-        try? data.write(to: settingsURL, options: .atomic)
+        try? data.write(to: url, options: .atomic)
     }
 }
