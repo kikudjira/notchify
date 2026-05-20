@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.2.0 — 2026-05-21
+
+### Features
+- feat(hooks): multi-target support + Integrations submenu (#7)
+
+### Notes
+- Hooks can now be installed across multiple Claude config dirs (`~/.claude`, `~/.claude-work`, `~/.claude-personal`, ...). Useful for users splitting accounts via `CLAUDE_CONFIG_DIR`. Target list persists at `~/.config/notchify/hook_targets.json` and is editable via `notchify config → Integrations → Config targets` or the new `notchify hooks targets list|add|remove` CLI.
+- The TUI's `Hooks ›` submenu is renamed to **Integrations** and now also hosts the intro/outro shell wrapper toggle (removed from the main menu). A master toggle at the top of the submenu flips all hooks plus the shell wrapper in one go — convenient for clean uninstall.
+- Unchecking a target in the picker or running `notchify hooks targets remove <path>` strips Notchify's own hook entries from that dir's `settings.json` before forgetting it. Unrelated hooks in the same file are preserved.
+- New `--config-dir <path>` flag (repeatable) on `notchify launch` and `notchify hooks reinstall` for scripted one-off overrides without mutating the saved target list.
+- `notchify launch` prints a one-line hint when multiple Claude config dirs are detected on first run.
+
 ## v1.1.0 — 2026-04-29
 
 ### Features
