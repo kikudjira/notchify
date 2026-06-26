@@ -16,9 +16,14 @@ A pixel mascot for [Claude Code](https://claude.ai/code) that lives in your MacB
 
 ```sh
 brew tap kikudjira/notchify
+brew trust kikudjira/notchify   # recent Homebrew requires trusting third-party taps
 brew install notchify
 notchify launch      # starts the app and enables all hooks automatically
 ```
+
+> **Note:** If you skip `brew trust`, Homebrew refuses to load the formula with
+> `Refusing to load formula ... from untrusted tap`. Run the trust command above (or
+> `brew trust --formula kikudjira/notchify/notchify`) and retry `brew install`.
 
 That's it. Hooks are enabled on first launch. To adjust sounds, display position, or intro/outro animation:
 
