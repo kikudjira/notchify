@@ -39,6 +39,7 @@ if command == "help" || command == "--help" || command == "-h" || command.isEmpt
       notchify hooks targets add     Add a config dir (e.g. ~/.claude-work)
       notchify hooks targets remove  Remove a config dir
       notchify hooks reinstall       Re-apply current hook state to every target
+      notchify repair                Fix a login item left stale by an upgrade
       notchify help                  Show this help
 
     FLAGS
@@ -66,6 +67,15 @@ if command == "help" || command == "--help" || command == "-h" || command.isEmpt
 // ---- config ----
 if command == "config" {
     Configurator.run()
+    exit(0)
+}
+
+// ---- repair ----
+// Invoked by the Homebrew formula's post_install and safe to run by hand.
+if command == "repair" {
+    if LoginItemConfig.repairIfStale() {
+        print("notchify: login item updated to \(resolveAppPath())")
+    }
     exit(0)
 }
 
@@ -140,6 +150,10 @@ if command == "launch" {
     if !hookState.working { HooksConfig.setWorking(true, override: configDirOverride) }
     if !hookState.done    { HooksConfig.setDone(true,    override: configDirOverride) }
     if !hookState.waiting { HooksConfig.setWaiting(true, override: configDirOverride) }
+
+    // A Homebrew upgrade can leave the login item plist pointing at a deleted
+    // Cellar version, so it silently stops starting at boot. Fix it here.
+    LoginItemConfig.repairIfStale()
 
     let appPath = resolveAppPath()
     guard appPath.hasSuffix(".app"), FileManager.default.fileExists(atPath: appPath) else {
