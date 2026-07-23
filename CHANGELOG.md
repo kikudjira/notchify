@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.0 — 2026-07-23
+
+### Fixes
+- fix(startup): keep login item working across Homebrew upgrades (#9)
+
+### Notes
+- The login item plist stored a versioned Cellar path (`/opt/homebrew/Cellar/notchify/<version>/...`). Once `brew upgrade` removed that version, launchd failed to spawn the app at every login with `EX_CONFIG`, while System Settings still showed the login item switched on — the plist file itself was still there. The app had to be started by hand with `notchify launch`.
+- `Notchify.app` is now resolved through the version-stable `/opt/homebrew/opt/notchify` symlink, which survives upgrades. The Homebrew formula writes the same stable path to `~/.config/notchify/app_path`.
+- New `notchify repair` command rewrites a login item plist pointing at a binary that no longer exists. `notchify launch` runs the same repair automatically, and the formula's `post_install` calls it so existing installs heal on upgrade.
+- Toggling the login item now `launchctl bootstrap`s / `bootout`s the job, so it takes effect immediately instead of at the next login.
+
 ## v1.2.0 — 2026-05-21
 
 ### Features
